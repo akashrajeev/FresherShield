@@ -58,6 +58,7 @@ class Signal:
     weight: int  # positive = more risk, negative = reassuring
     detail: str = ""
     evidence: list[dict] = field(default_factory=list)  # [{title, link, source}]
+    params: dict = field(default_factory=dict)  # values in the label, so app/i18n.py can translate it
 
 
 @dataclass
@@ -70,6 +71,8 @@ class Report:
     engines_used: list[str]
     impersonation_risk: bool = False
     errors: list[str] = field(default_factory=list)
+    headline_key: str = ""
+    headline_params: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -103,7 +106,7 @@ def posting_signals(job: Job) -> list[Signal]:
     if not job.apply_options and job.job_id != "pasted":
         out.append(Signal("no_apply", "No apply link listed anywhere", 10))
     elif known:
-        out.append(Signal("boards", f"Listed on established job boards: {', '.join(known)}", -5,
+        out.append(Signal("boards", f"Listed on established job boards: {', '.join(known)}", -5, params={"boards": ", ".join(known)},
                           evidence=[{"title": a["title"], "link": a["link"], "source": a["domain"]} for a in job.apply_options[:3]]))
     if others and not known:
         out.append(Signal("unknown_apply", "Only apply route is an unfamiliar website", 8, detail=", ".join(others[:3])))
@@ -275,12 +278,12 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
     if n_scam:
         weight = min(40, 10 + 6 * n_scam) + (10 if both else 0)
         eng = "Google and Bing" if (g_scam and b_scam) else ("Google" if g_scam else "Bing")
-        signals.append(Signal("web_scam", f"{n_scam} search result(s) link this company name to scam/fraud complaints ({eng})", weight,
+        signals.append(Signal("web_scam", f"{n_scam} search result(s) link this company name to scam/fraud complaints ({eng})", weight, params={"n": n_scam, "engines": eng.replace(" and ", " + ")},
                               detail=("Same complaint pages surfaced on both engines" if both else ""),
                               evidence=_dedupe(g_scam + b_scam)[:5]))
     if complaint_hits:
         sites = sorted({h["source"] for h in complaint_hits})
-        signals.append(Signal("complaint_sites", f"Discussed on complaint/review forums: {', '.join(sites)}", 8, evidence=_dedupe(complaint_hits)[:3]))
+        signals.append(Signal("complaint_sites", f"Discussed on complaint/review forums: {', '.join(sites)}", 8, params={"sites": ", ".join(sites)}, evidence=_dedupe(complaint_hits)[:3]))
     impersonation = False
     if n_imp:
         impersonation = True
@@ -288,7 +291,8 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
                               detail="This is usually a warning about impostors, not the company. Apply only through the official careers site.",
                               evidence=_dedupe(g_imp + b_imp)[:4]))
     if not n_scam and not n_imp and engines:
-        signals.append(Signal("web_clean", f"No scam or fraud complaints tied to this name on {' or '.join(e.title() for e in engines if e in ('google', 'bing'))}", -10))
+        clean_on = ' or '.join(e.title() for e in engines if e in ('google', 'bing'))
+        signals.append(Signal("web_clean", f"No scam or fraud complaints tied to this name on {clean_on}", -10, params={"engines": clean_on.replace(" or ", " + ")}))
 
     legit = 0
     if kg:
@@ -301,7 +305,8 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
         low = rating is not None and rating < 3.0
         signals.append(Signal("reviews", f"Reviews found on {review_src['source']}" + (f": {rating}/5" if rating else "") + (f" from {reviews:,} reviews" if reviews else ""),
                               8 if low else (-12 if (reviews or 0) >= 50 else -6),
-                              detail="Low rating" if low else "", evidence=[review_src]))
+                              detail="Low rating" if low else "", evidence=[review_src],
+                              params={"source": review_src["source"], "stats": _stats(rating, reviews)}))
     if registry:
         legit += 1
         age_note, w = "", -6
@@ -317,10 +322,10 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
             except ValueError:
                 age_note = f"incorporated {registry['incorporated']}"
         signals.append(Signal("registry", "Listed in the company registry (MCA data via " + registry["source"] + ")", w,
-                              detail=age_note, evidence=[{k: registry[k] for k in ("title", "link", "source")}]))
+                              detail=age_note, evidence=[{k: registry[k] for k in ("title", "link", "source")}], params={"source": registry["source"]}))
     if official:
         legit += 1
-        signals.append(Signal("official_site", f"Has its own website ({official['source']})", -6, evidence=[official]))
+        signals.append(Signal("official_site", f"Has its own website ({official['source']})", -6, evidence=[official], params={"domain": official["source"]}))
     if institute_hits:
         signals.append(Signal("institute", "Looks like a training institute or academy, not a direct employer", 12,
                               detail="'Job + training' offers from institutes often mean paying course fees. Ask whether any fee is involved before you join.",
@@ -382,14 +387,15 @@ def maps_signals(company: str, places: list[dict]) -> list[Signal]:
                  "snippet": " · ".join(x for x in (p.get("type", ""), p.get("address", "")) if x)[:220]} for p in hits[:3]]
     weight = -10 if total_reviews >= 20 else -4
     low = rating is not None and float(rating) < 3.0 and total_reviews >= 10
-    out = [Signal("maps", label, 6 if low else weight, detail=("Low Maps rating. Read the reviews." if low else where), evidence=evidence)]
+    out = [Signal("maps", label, 6 if low else weight, detail=("Low Maps rating. Read the reviews." if low else where), evidence=evidence,
+                  params={"n": len(hits), "stats": _stats(rating, total_reviews or None)})]
     types = " ".join([best.get("type", "")] + list(best.get("types") or []))
     if AGENCY_TYPES.search(types):
-        out.append(Signal("maps_agency", f"Google Maps lists it as \"{best.get('type') or 'placement agency'}\", not an employer", 6,
+        out.append(Signal("maps_agency", f"Google Maps lists it as \"{best.get('type') or 'placement agency'}\", not an employer", 6, params={"type": best.get("type") or "placement agency"},
                           detail="Placement agencies sometimes charge job seekers. Real employers never do. Ask who the actual employer is.",
                           evidence=evidence[:1]))
     elif INSTITUTE_TYPES.search(types):
-        out.append(Signal("maps_institute", f"Google Maps lists it as \"{best.get('type') or 'training institute'}\"", 10,
+        out.append(Signal("maps_institute", f"Google Maps lists it as \"{best.get('type') or 'training institute'}\"", 10, params={"type": best.get("type") or "training institute"},
                           detail="'Job + training' offers from institutes often mean paying course fees.", evidence=evidence[:1]))
     return out
 
@@ -452,27 +458,47 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
         level = "caution"
     else:
         level = "low"
-    headline = _headline(level, signals, impersonation)
+    hkey, hparams = headline_key(level, signals, impersonation)
+    headline = HEADLINES[hkey].format(**hparams)
     signals.sort(key=lambda s: -s.weight)
-    return Report(company, score, level, headline, signals, engines, impersonation, errors)
+    return Report(company, score, level, headline, signals, engines, impersonation, errors, hkey, hparams)
 
 
-def _headline(level: str, signals: list[Signal], impersonation: bool) -> str:
+HEADLINES = {
+    "fee": "Asks for money up front. Real employers in India do not charge freshers to get hired.",
+    "high": "Multiple scam signals. Verify independently before sharing documents or money.",
+    "caution_real": "Real company, but its name is used by impostors. Apply only via the official careers page.",
+    "caution": "Some warning signs. Check the company's official site and never pay to apply.",
+    "low_watch": "Low overall risk, but check this: {label}.",
+    "low_imp": "Looks legitimate. Its name is sometimes misused, so apply only via official channels.",
+    "low_clean": "No scam signals found in the posting or on the web.",
+    "unknown": "Not enough data to judge.",
+}
+
+
+def _stats(rating, reviews) -> str:
+    """Language-neutral numbers for translated labels, e.g. '★ 4.1/5 · 8,535'."""
+    bits = ([f"★ {rating}/5"] if rating else []) + ([f"{int(reviews):,}"] if reviews else [])
+    return " · ".join(bits)
+
+
+def headline_key(level: str, signals: list[Signal], impersonation: bool) -> tuple[str, dict]:
     ids = {s.id for s in signals}
     if "fee" in ids:
-        return "Asks for money up front. Real employers in India do not charge freshers to get hired."
+        return "fee", {}
     if level == "high":
-        return "Multiple scam signals. Verify independently before sharing documents or money."
+        return "high", {}
     if level == "caution":
-        if impersonation and ids & {"kg", "reviews", "maps"}:
-            return "Real company, but its name is used by impostors. Apply only via the official careers page."
-        return "Some warning signs. Check the company's official site and never pay to apply."
+        return ("caution_real", {}) if impersonation and ids & {"kg", "reviews", "maps"} else ("caution", {})
     if level == "low":
         watch = [s for s in signals if s.weight >= 10]
         if watch:
             top = max(watch, key=lambda s: s.weight)
-            return f"Low overall risk, but check this: {top.label.lower()}."
-        if impersonation:
-            return "Looks legitimate. Its name is sometimes misused, so apply only via official channels."
-        return "No scam signals found in the posting or on the web."
-    return "Not enough data to judge."
+            return "low_watch", {"label": top.label.lower(), "signal": top.id}
+        return ("low_imp", {}) if impersonation else ("low_clean", {})
+    return "unknown", {}
+
+
+def _headline(level: str, signals: list[Signal], impersonation: bool) -> str:
+    key, params = headline_key(level, signals, impersonation)
+    return HEADLINES[key].format(**params)

@@ -84,10 +84,10 @@ def test_assess_high_risk_unknown_company():
     fc = FakeClient({("google", "scam"): scam_rows, ("bing", "scam"): scam_rows, ("google", "reviews"): {"organic_results": []}})
     j = Job("3", "Data entry", "QuickEarn Solutions", "", "", "Registration fee Rs 1500. Contact on WhatsApp.")
     r = assess(fc, j, j.company)
-    assert r.level == "high" and r.engines_used == ["google", "bing"]
+    assert r.level == "high" and r.engines_used == ["google", "bing", "google_maps"]
     ids = {s.id for s in r.signals}
-    assert {"fee", "web_scam", "complaint_sites", "no_footprint"} <= ids
-    assert len(fc.calls) == 3
+    assert {"fee", "web_scam", "complaint_sites", "no_footprint", "maps_absent"} <= ids
+    assert len(fc.calls) == 4
 
 
 def test_assess_big_company_impersonation_is_not_high():
@@ -95,7 +95,8 @@ def test_assess_big_company_impersonation_is_not_high():
     legit = {"knowledge_graph": {"title": "Tata Consultancy Services", "website": "https://www.tcs.com"},
              "organic_results": [{"title": "TCS Reviews by 90k employees | AmbitionBox", "link": "https://www.ambitionbox.com/reviews/tcs-reviews",
                                   "rich_snippet": {"top": {"detected_extensions": {"rating": 3.8, "reviews": 90000}}}}]}
-    fc = FakeClient({("google", "scam"): imp, ("bing", "scam"): imp, ("google", "reviews"): legit})
+    maps = {"local_results": [{"title": "TCS Sahyadri Park", "rating": 4.4, "reviews": 3100, "type": "Software company", "place_id": "ChIJx"}]}
+    fc = FakeClient({("google", "scam"): imp, ("bing", "scam"): imp, ("google", "reviews"): legit, ("google_maps", ""): maps})
     j = Job("4", "Graduate Trainee", "TCS", "", "", "Freshers 2026", apply_options=[{"title": "TCS", "link": "https://www.tcs.com/careers", "domain": "tcs.com"}])
     r = assess(fc, j, "TCS")
     assert r.impersonation_risk and r.level == "low"
@@ -136,3 +137,57 @@ def test_scam_pages_on_brand_domains_are_impersonation():
     rows = [{"title": "Identifying a scam - Amazon Customer Service", "snippet": "Amazon scam", "link": "https://www.amazon.com/gp/help/scam"}]
     scam, imp = _classify_results("Amazon", rows, "google", "amazon.in")
     assert scam == [] and len(imp) == 1
+
+
+# ---------------------------------------------------------------- Google Maps signal
+from app.scam import maps_signals, maps_url
+
+
+def test_maps_presence_with_reviews_is_reassuring():
+    places = [{"title": "Tradexa Technologies", "rating": 4.6, "reviews": 41, "type": "Software company", "address": "Baner, Pune", "place_id": "ChIJabc"},
+              {"title": "Some Other Cafe", "reviews": 900}]
+    sigs = maps_signals("Tradexa Technologies", places)
+    assert [s.id for s in sigs] == ["maps"] and sigs[0].weight == -10
+    assert "41 reviews" in sigs[0].label and "query_place_id=ChIJabc" in sigs[0].evidence[0]["link"]
+
+
+def test_maps_absent_and_unrelated_places_do_not_count():
+    sigs = maps_signals("QuickEarn Solutions", [{"title": "Quick Bites Restaurant", "reviews": 300}])
+    assert [s.id for s in sigs] == ["maps_absent"] and sigs[0].weight > 0
+
+
+def test_maps_category_flags_agencies_and_institutes():
+    agency = maps_signals("Star Manpower", [{"title": "Star Manpower Consultancy", "reviews": 3, "type": "Employment agency"}])
+    assert {s.id for s in agency} == {"maps", "maps_agency"}
+    inst = maps_signals("CodeGuru Academy", [{"title": "CodeGuru Academy", "reviews": 60, "type": "Computer training school"}])
+    assert "maps_institute" in {s.id for s in inst}
+
+
+def test_maps_low_rating_is_a_warning():
+    sigs = maps_signals("Bad Corp", [{"title": "Bad Corp", "rating": 1.9, "reviews": 57}])
+    assert sigs[0].weight > 0
+
+
+def test_maps_single_place_result_and_failure_are_handled():
+    from app.scam import maps_places
+    from app.serp import SerpError
+
+    class One(FakeClient):
+        def search(self, engine, **p):
+            return {"place_results": {"title": "Infosys Pune", "reviews": 5000}}
+
+    class Down(FakeClient):
+        def search(self, engine, **p):
+            raise SerpError("quota")
+
+    engines, errors = [], []
+    assert maps_places(One({}), "Infosys", engines, errors)[0]["title"] == "Infosys Pune" and engines == ["google_maps"]
+    engines, errors = [], []
+    assert maps_places(Down({}), "Infosys", engines, errors) is None and errors == ["quota"] and engines == []
+    assert maps_url({"title": "X", "link": "https://maps.example/x"}) == "https://maps.example/x"
+
+
+def test_maps_presence_counts_as_real_company_in_headline():
+    from app.scam import _headline, Signal
+    sigs = [Signal("impersonation", "x", 10), Signal("maps", "y", -10)]
+    assert _headline("caution", sigs, True).startswith("Real company")

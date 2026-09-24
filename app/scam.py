@@ -5,7 +5,8 @@ Two layers:
    where it can be applied to.
 2. Web footprint (SerpApi): what Google and Bing return when you search the company
    name next to scam/fraud/complaint words, plus whether the company has a real
-   legitimacy footprint (Knowledge Graph, employee reviews, an official website).
+   legitimacy footprint (Knowledge Graph, employee reviews, an official website) and a
+   Google Maps presence (real offices with reviews, and what kind of business it is).
 
 The output is a risk level with every signal and its evidence link. It is a triage
 aid, not a verdict. See docs/METHODOLOGY.md.
@@ -233,6 +234,7 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
     b_rows = run("bing", q=f'"{name}" scam OR fraud OR complaints', cc="IN")    # 2) Bing, independent index
     run("google", q=f'"{name}" reviews', gl="in", hl="en", num=10)               # 3) Google legitimacy footprint
     kg = run.kg
+    places = maps_places(client, name, engines, errors)                          # 4) Google Maps: real offices
 
     # ---- legitimacy footprint from everything we saw
     rating = reviews = review_src = official = registry = None
@@ -286,7 +288,7 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
                               detail="This is usually a warning about impostors, not the company. Apply only through the official careers site.",
                               evidence=_dedupe(g_imp + b_imp)[:4]))
     if not n_scam and not n_imp and engines:
-        signals.append(Signal("web_clean", f"No scam or fraud complaints tied to this name on {' or '.join(e.title() for e in engines)}", -10))
+        signals.append(Signal("web_clean", f"No scam or fraud complaints tied to this name on {' or '.join(e.title() for e in engines if e in ('google', 'bing'))}", -10))
 
     legit = 0
     if kg:
@@ -323,10 +325,73 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
         signals.append(Signal("institute", "Looks like a training institute or academy, not a direct employer", 12,
                               detail="'Job + training' offers from institutes often mean paying course fees. Ask whether any fee is involved before you join.",
                               evidence=_dedupe(institute_hits)[:3]))
+    maps_sig = maps_signals(company, places) if places is not None else []
+    for sig in maps_sig:
+        if sig.id == "maps":
+            legit += 1
+    signals.extend(maps_sig)
     if engines and legit == 0:
-        signals.append(Signal("no_footprint", "No Knowledge Graph, reviews, registry record or official website found", 18,
+        signals.append(Signal("no_footprint", "No Knowledge Graph, reviews, registry record, official website or Maps listing found", 18,
                               detail="Brand-new or non-existent companies are a common scam pattern. Not proof on its own."))
     return signals, engines, impersonation, errors
+
+
+# ----------------------------------------------------------------- Google Maps layer
+INDIA_LL = "@22.5,79.0,5z"  # whole-country view: company names aren't tied to one city
+AGENCY_TYPES = re.compile(r"employment agency|placement|recruit|staffing|manpower|job (?:consultant|agency)|consultant", re.I)
+INSTITUTE_TYPES = re.compile(r"training|institute|academy|coaching|education|computer (?:training|school)|tutor", re.I)
+
+
+def maps_places(client: SerpClient, name: str, engines: list[str], errors: list[str]) -> list[dict] | None:
+    """Google Maps search for the company name across India. None if the call failed."""
+    try:
+        data = client.search("google_maps", q=name, type="search", ll=INDIA_LL, hl="en")
+    except SerpError as e:
+        errors.append(str(e))
+        return None
+    if "google_maps" not in engines:
+        engines.append("google_maps")
+    if data.get("place_results"):
+        return [data["place_results"]]
+    return list(data.get("local_results") or [])
+
+
+def maps_url(place: dict) -> str:
+    if place.get("place_id"):
+        from urllib.parse import quote_plus
+        return f"https://www.google.com/maps/search/?api=1&query={quote_plus(place.get('title', ''))}&query_place_id={place['place_id']}"
+    return place.get("link") or place.get("website") or ""
+
+
+def maps_signals(company: str, places: list[dict]) -> list[Signal]:
+    """Real employers usually have offices on Google Maps with reviews; fee-scam "companies" usually don't.
+
+    Only places whose name matches the company count. Several branches add up; the category tells
+    us if it's actually a placement agency or a training institute (both common fee-scam fronts).
+    """
+    hits = [p for p in places if _mentions(company, p.get("title", ""))]
+    if not hits:
+        return [Signal("maps_absent", "No Google Maps listing under this name", 4,
+                       detail="Most employers with a real office have one. Remote-first startups may not, so this is weak on its own.")]
+    total_reviews = sum(int(p.get("reviews") or 0) for p in hits)
+    best = max(hits, key=lambda p: int(p.get("reviews") or 0))
+    rating = best.get("rating")
+    where = best.get("address", "")
+    label = f"On Google Maps: {len(hits)} listing(s)" + (f", {total_reviews:,} reviews" if total_reviews else "") + (f", top rated {rating}/5" if rating else "")
+    evidence = [{"title": p.get("title", ""), "link": maps_url(p), "source": "Google Maps", "engine": "google_maps",
+                 "snippet": " · ".join(x for x in (p.get("type", ""), p.get("address", "")) if x)[:220]} for p in hits[:3]]
+    weight = -10 if total_reviews >= 20 else -4
+    low = rating is not None and float(rating) < 3.0 and total_reviews >= 10
+    out = [Signal("maps", label, 6 if low else weight, detail=("Low Maps rating. Read the reviews." if low else where), evidence=evidence)]
+    types = " ".join([best.get("type", "")] + list(best.get("types") or []))
+    if AGENCY_TYPES.search(types):
+        out.append(Signal("maps_agency", f"Google Maps lists it as \"{best.get('type') or 'placement agency'}\", not an employer", 6,
+                          detail="Placement agencies sometimes charge job seekers. Real employers never do. Ask who the actual employer is.",
+                          evidence=evidence[:1]))
+    elif INSTITUTE_TYPES.search(types):
+        out.append(Signal("maps_institute", f"Google Maps lists it as \"{best.get('type') or 'training institute'}\"", 10,
+                          detail="'Job + training' offers from institutes often mean paying course fees.", evidence=evidence[:1]))
+    return out
 
 
 STOP = {"pvt", "ltd", "private", "limited", "india", "the", "and", "solutions", "services", "technologies", "technology",
@@ -399,7 +464,7 @@ def _headline(level: str, signals: list[Signal], impersonation: bool) -> str:
     if level == "high":
         return "Multiple scam signals. Verify independently before sharing documents or money."
     if level == "caution":
-        if impersonation and ("kg" in ids or "reviews" in ids):
+        if impersonation and ids & {"kg", "reviews", "maps"}:
             return "Real company, but its name is used by impostors. Apply only via the official careers page."
         return "Some warning signs. Check the company's official site and never pay to apply."
     if level == "low":

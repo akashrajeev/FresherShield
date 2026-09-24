@@ -40,6 +40,11 @@ you paste in the "Check an offer I got" tab).
 | Only an unfamiliar apply site | +8 | no known job board among the apply options |
 | Listed on established boards | -5 | LinkedIn, Naukri, Indeed, foundit, Internshala, ... |
 
+Every rule also has a Hindi and Hinglish version ("registration fees jama karo",
+"रजिस्ट्रेशन फीस जमा करें", "bina interview joining", "घर बैठे रोज़ ₹1500 कमाएं"), because
+fake offers are forwarded on WhatsApp in these forms. A fee mention that is negated in
+the same clause ("No registration fee is charged", "कोई फीस नहीं") is not counted.
+
 **Hard rule:** if the posting asks for money, the score is raised to at least 70
 (high) whatever else is found. Legitimate employers do not charge candidates to be
 hired.
@@ -114,8 +119,9 @@ careers page. It does not treat them as evidence against the company.
   complaints. Evidence links are always shown so the user can judge.
 - **New companies.** A real startup can have no footprint yet. "No footprint" is a
   warning, not proof, and it is weighted below a direct fee request.
-- **English-only patterns.** Red-flag phrases are English; Hinglish/regional-language
-  offers may slip through.
+- **Languages.** Red-flag phrases cover English, Hindi (Devanagari) and Hinglish
+  (romanised Hindi). Other regional languages (Tamil, Telugu, Malayalam...) can still
+  slip through.
 - **Search results change.** Results are cached locally (7 days by default) to save
   credits; a re-check after the TTL can differ.
 - **Weights are hand-tuned**, not learned from a labelled dataset. They are

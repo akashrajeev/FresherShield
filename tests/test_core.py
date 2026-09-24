@@ -197,3 +197,24 @@ def test_maps_place_type_can_be_a_list():
     sigs = maps_signals("Tradexa", [{"title": "Tradexa", "reviews": 30, "type": ["Software company", "Employment agency"], "address": "Pune"}])
     assert sigs[0].id == "maps" and "Software company" in sigs[0].evidence[0]["snippet"]
     assert "maps_agency" in {s.id for s in sigs}
+
+
+# ---------------------------------------------------------------- Hindi / Hinglish red flags
+def _ids(text):
+    return {s.id for s in posting_signals(Job("pasted", "", "X", "", "", text))}
+
+
+def test_hinglish_offer_is_caught():
+    ids = _ids("Congrats! Ghar baithe roz 2000 kamao. Bina interview joining. Registration fees 999 jama karo. Jaldi karo, aaj hi.")
+    assert {"fee", "no_interview", "easy_money", "urgency"} <= ids
+
+
+def test_hindi_offer_is_caught():
+    ids = _ids("बधाई हो! घर बैठे रोज़ ₹1500 कमाएं। बिना इंटरव्यू सीधी जॉइनिंग। रजिस्ट्रेशन फीस ₹799 जमा करें (रिफंडेबल)। व्हाट्सएप करें।")
+    assert {"fee", "no_interview", "easy_money", "chat_contact"} <= ids
+
+
+def test_negated_fee_mentions_are_not_red_flags():
+    assert "fee" not in _ids("Walk-in drive for 2026 graduates. No registration fee is charged at any stage.")
+    assert "fee" not in _ids("TCS kisi bhi candidate se fees nahi leta. कोई फीस नहीं ली जाती।")
+    assert "fee" in _ids("There is no interview. Pay registration fee of Rs 500 to confirm.")

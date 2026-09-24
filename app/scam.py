@@ -48,6 +48,36 @@ POSTING_RULES = [
     ("easy_money", "Easy-money work pattern (typing, likes, data entry from phone)", r"(typing|data entry|copy[- ]paste|form filling|like (?:and|&) (?:earn|subscribe)|youtube likes|rating tasks?|review tasks?|captcha)\s*(?:work|job)?.{0,40}(earn|income|daily|per day|weekly|payout)|work from (?:home|mobile).{0,40}earn|earn (?:rs\.?|₹)\s?\d", 20),
     ("urgency", "High-pressure urgency", r"limited (?:seats|slots|vacancies)|hurry|apply (?:immediately|asap|today only)|last date today|immediate joining.{0,20}(?:fee|pay)", 8),
 ]
+# Hindi (Devanagari) and Hinglish (romanised Hindi) versions of the same patterns. Fake offers
+# are forwarded on WhatsApp in these forms far more than in formal English.
+HINDI_RULES = {
+    "fee": r"(?:registration|joining|training|security|kit|form)\s*(?:fee|fees|charges?|amount|paise)\s*(?:jama|bharn[ai]|bharo|den[ai]|do|pay kar)|fees?\s*(?:jama|bharo|bharn[ai]|den[ai]\s*hog[ia])|paise\s*(?:jama|dene)|शुल्क|फ़?फीस|फ़ीस|पंजीकरण|रजिस्ट्रेशन\s*(?:फ़?ीस|चार्ज|अमाउंट)|जमा\s*(?:करें|करना|कराएं|करो)|सिक्योरिटी\s*(?:डिपॉ?जिट|मनी|राशि)|रिफंडेबल|वापस\s*मिल\s*जाएगा",
+    "chat_contact": r"व्हाट्स\s*[एऐ]प|वॉट्सऐप|टेलीग्राम",
+    "no_interview": r"bina\s+(?:kisi\s+)?interview|interview\s+(?:nahi|nahin)|बिना\s+(?:किसी\s+)?(?:इंटरव्यू|साक्षात्कार)|(?:सीधी|डायरेक्ट)\s+(?:जॉइनिंग|भर्ती)|100%\s*(?:नौकरी|जॉब)\s*(?:गारंटी|पक्की)|नौकरी\s+पक्की",
+    "easy_money": r"ghar\s+baithe.{0,40}(?:kama|kamai|earn|income)|(?:roz|rozana|daily|per\s*day|prati\s*din).{0,20}(?:kama|kamai)|घर\s+बैठे.{0,40}(?:कमा|आय|इनकम|कमाई)|(?:रोज़?|रोजाना|रोज़ाना|प्रतिदिन|हर\s+दिन).{0,25}(?:कमा|कमाई|₹|रुपये)",
+    "urgency": r"jaldi\s+(?:karo|kare|apply)|aaj\s+hi|सीमित\s+(?:सीट|पद)|जल्दी\s+(?:करें|करो)|आज\s+ही",
+}
+# "No registration fee", "कोई फीस नहीं", "fees nahi" are reassurances, not requests for money.
+FEE_NEGATION_BEFORE = re.compile(r"(?:\bno|\bzero|\bnot|\bnever|\bwithout|\bfree of|कोई|बिना|निःशुल्क|मुफ्त|मुफ़्त)[\s:-]*(?:[^\s.!?।]+\s*){0,2}$", re.I)
+FEE_NEGATION_AFTER = re.compile(r"^[^\S\n]{0,3}(?:[^\s.!?।]+\s*){0,2}(?:nahi|nahin|not required|is not|are not|नहीं|नही|न\s)", re.I)
+
+
+def _fee_is_negated(text: str, m: re.Match) -> bool:
+    return bool(FEE_NEGATION_BEFORE.search(text[max(0, m.start() - 25): m.start()]) or FEE_NEGATION_AFTER.search(text[m.end(): m.end() + 25]))
+
+
+def _rule_match(rid: str, pat: str, text: str) -> re.Match | None:
+    """First match of the English rule or its Hindi/Hinglish version; fee mentions that are negated don't count."""
+    for p in (pat, HINDI_RULES.get(rid)):
+        if not p:
+            continue
+        for m in re.finditer(p, text, re.I):
+            if rid == "fee" and _fee_is_negated(text, m):
+                continue
+            return m
+    return None
+
+
 SALARY_NUM = re.compile(r"(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)\s*(k|l|lakh|lpa|lac)?", re.I)
 
 
@@ -88,7 +118,7 @@ def posting_signals(job: Job) -> list[Signal]:
         if rid == "generic_email":
             m = GENERIC_EMAIL.search(text)
         else:
-            m = re.search(pat, text, re.I)
+            m = _rule_match(rid, pat, text)
         if m:
             out.append(Signal(rid, label, weight, detail=_snippet(text, m.start(), m.end())))
 

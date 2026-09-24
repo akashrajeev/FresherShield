@@ -200,6 +200,39 @@ button:disabled { opacity: .55; cursor: wait; }
 .sig .det { color: var(--muted); font-size: 12.5px; display: block; }
 .engines { font-size: 11.5px; color: var(--muted); margin-top: 10px; }
 
+.repactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.repactions .small, .repactions .wa { font-size: 12.5px; padding: 6px 12px; }
+.repactions .wa {
+  border-radius: 8px; background: #1f7a4d; color: #fff; text-decoration: none; font-weight: 600;
+}
+.repactions .wa:hover { background: #17633e; }
+.printhead, .printfoot { display: none; }
+.topright { display: flex; align-items: center; gap: 14px; }
+.langpick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.langpick select {
+  font: inherit; font-size: 12.5px; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink, #222); width: auto; margin: 0;
+}
+:lang(hi) { font-family: "Inter", "Noto Sans Devanagari", sans-serif; }
+:lang(ml) { font-family: "Inter", "Noto Sans Malayalam", sans-serif; }
+
+/* Print just the report being exported: a one-page sheet a fresher can show family
+   before paying anyone. Links print with their URL so the evidence stays checkable. */
+@media print {
+  @page { margin: 14mm; }
+  body.printing * { visibility: hidden; }
+  body.printing .print-target, body.printing .print-target * { visibility: visible; }
+  body.printing .print-target {
+    position: absolute; left: 0; top: 0; width: 100%;
+    border: 1px solid #999; background: #fff; box-shadow: none;
+  }
+  .print-target .repactions { display: none; }
+  .print-target .printhead { display: block; font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+  .print-target .printfoot { display: block; margin-top: 14px; font-size: 12px; border-top: 1px solid #ccc; padding-top: 8px; }
+  .print-target .sig .ev a::after { content: " (" attr(href) ")"; color: #555; word-break: break-all; }
+  .print-target .gauge { border: 1px solid #999; }
+}
+
 /* ---------- prose / footer / misc ---------- */
 .prose p, .prose li { line-height: 1.6; }
 .prose ol { padding-left: 20px; }

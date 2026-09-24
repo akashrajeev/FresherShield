@@ -108,8 +108,7 @@ function renderJobs(jobs) {
       b.disabled = true;
       $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Cross-checking “${esc(j.company)}” on Google, Bing and Maps…</span>`;
       try {
-        const r = await api("/api/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: j.job_id }) });
-        $(".report", el).innerHTML = renderReport(r.report);
+        const r = await runCheck($(".report", el), { job_id: j.job_id });
         meter(r.stats);
       } catch (e) {
         $(".report", el).innerHTML = `<span class="flag">${esc(e.message)}</span>`;
@@ -119,18 +118,71 @@ function renderJobs(jobs) {
   });
 }
 
+// ---------------------------------------------------------------- report language + export
+const langSel = $("#lang");
+langSel.value = localStorage.getItem("fs-lang") || "en";
+const shareTexts = new Map(); // report element id -> plain-text report
+let repSeq = 0;
+
+// Render a report into `box` and remember the request, so switching language can re-ask
+// the server. Re-checks hit the local cache, so a language switch costs no SerpApi credits.
+async function runCheck(box, body) {
+  const r = await api("/api/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, lang: langSel.value }) });
+  box.dataset.req = JSON.stringify(body);
+  box.innerHTML = renderReport(r.report);
+  return r;
+}
+
+langSel.addEventListener("change", async () => {
+  localStorage.setItem("fs-lang", langSel.value);
+  document.documentElement.lang = langSel.value;
+  for (const box of document.querySelectorAll("[data-req]")) {
+    try { await runCheck(box, JSON.parse(box.dataset.req)); } catch (_) {}
+  }
+  refreshStatus();
+});
+document.documentElement.lang = langSel.value;
+
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-act]");
+  if (!b) return;
+  const rep = b.closest(".rep");
+  const text = shareTexts.get(rep.id) || "";
+  if (b.dataset.act === "copy") {
+    try { await navigator.clipboard.writeText(text); } catch (_) {
+      const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove();
+    }
+    const old = b.textContent; b.textContent = "✓ " + b.dataset.done; setTimeout(() => (b.textContent = old), 1600);
+  } else if (b.dataset.act === "print") {
+    document.body.classList.add("printing"); rep.classList.add("print-target");
+    window.print();
+    document.body.classList.remove("printing"); rep.classList.remove("print-target");
+  }
+});
+
 function renderReport(r) {
+  const ui = r.ui || {};
+  const id = "rep" + ++repSeq;
+  shareTexts.set(id, r.share_text || "");
   const sigs = r.signals.map((s) => {
     const cls = s.weight > 0 ? "pos" : s.weight < 0 ? "neg" : "";
     const ev = (s.evidence || []).filter((e) => e.link).map((e) => `<a href="${esc(e.link)}" target="_blank" rel="noopener" title="${esc(e.snippet || "")}">${esc(e.source || "source")}${e.engine ? " (" + esc(e.engine) + ")" : ""}: ${esc((e.title || "").slice(0, 60))}</a>`).join("");
     return `<div class="sig"><span class="w ${cls}">${s.weight > 0 ? "+" : ""}${s.weight}</span><span>${esc(s.label)}${s.detail ? `<span class="det">${esc(s.detail)}</span>` : ""}${ev ? `<span class="ev">${ev}</span>` : ""}</span></div>`;
   }).join("");
-  return `<div class="rep ${r.level}">
-    <div class="rephead"><span class="badge ${r.level}">${r.level === "low" ? "low risk" : r.level === "caution" ? "caution" : r.level === "high" ? "high risk" : "unknown"}</span>
-      <div class="gauge"><i style="width:${r.risk_score}%"></i></div><b>${r.risk_score}/100</b></div>
+  const wa = "https://wa.me/?text=" + encodeURIComponent(r.share_text || "");
+  return `<div class="rep ${r.level}" id="${id}" lang="${esc(r.lang || "en")}">
+    <div class="printhead">🛡️ FresherShield · ${esc(r.company || ui.pasted || "")}</div>
+    <div class="rephead"><span class="badge ${r.level}">${esc(r.level_label || r.level)}</span>
+      <div class="gauge"><i style="width:${r.risk_score}%"></i></div><b title="${esc(ui.score || "")}">${r.risk_score}/100</b></div>
     <p style="margin:8px 0 6px">${esc(r.headline)}</p>
     ${sigs}
-    <div class="engines">Engines queried: ${r.engines_used.length ? r.engines_used.join(", ") : "none (posting text only)"}${r.errors.length ? " · " + esc(r.errors.join("; ")) : ""}</div>
+    <div class="engines">${esc(ui.engines || "Engines queried")}: ${r.engines_used.length ? r.engines_used.join(", ") : esc(ui.engines_none || "none")}${r.errors.length ? " · " + esc(r.errors.join("; ")) : ""}</div>
+    <div class="repactions">
+      <button class="secondary small" data-act="copy" data-done="${esc(ui.copied || "Copied")}">${esc(ui.copy || "Copy as text")}</button>
+      <a class="wa small" href="${wa}" target="_blank" rel="noopener">${esc(ui.whatsapp || "Share on WhatsApp")}</a>
+      <button class="secondary small" data-act="print">${esc(ui.print || "Print")}</button>
+    </div>
+    <div class="printfoot">${esc(ui.footer || "")}</div>
   </div>`;
 }
 
@@ -142,8 +194,8 @@ $("#offerBtn").addEventListener("click", async () => {
   $("#offerBtn").disabled = true;
   $("#offerResult").innerHTML = `<p class="muted"><span class="spinner"></span>Checking the message${company ? " and cross-searching “" + esc(company) + "”" : ""}…</p>`;
   try {
-    const r = await api("/api/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offer_text: text, company, use_web: !!company }) });
-    $("#offerResult").innerHTML = `<div style="margin-top:12px">${renderReport(r.report)}</div>`;
+    $("#offerResult").innerHTML = `<div class="offerRep" style="margin-top:12px"></div>`;
+    const r = await runCheck($("#offerResult .offerRep"), { offer_text: text, company, use_web: !!company });
     meter(r.stats);
   } catch (e) {
     $("#offerResult").innerHTML = `<span class="flag">${esc(e.message)}</span>`;

@@ -19,15 +19,22 @@ from urllib.parse import urlparse
 from .jobs import Job, board_for, domain_of
 from .serp import SerpClient, SerpError
 
-SCAM_WORDS = re.compile(r"\b(scam|scammers?|fraud|fraudulent|fake|cheat(?:ed|ing)?|complaints?|beware|warning|money (?:not )?refund|looted|extort)", re.I)
-IMPERSONATION = re.compile(r"(fake (?:offer|job|appointment) letters?|in the name of|impersonat|pretending to be|posing as|fraudulent (?:job )?offers?|recruitment fraud|beware of fake|fraud alert|fake recruit)", re.I)
+SCAM_WORDS = re.compile(r"\b(scam|scammers?|fraud|fraudulent|fake|cheat(?:ed|ing)?|complaints?|beware|warning|money (?:not )?refund|not refundable|no refund|be aware before|looted|extort)", re.I)
+IMPERSONATION = re.compile(r"(fraud[- ]alert|disclaimer|fake (?:offer|job|appointment) letters?|in the name of|impersonat|pretending to be|posing as|fraudulent (?:job )?offers?|recruitment fraud|beware of fake|fraud alert|fake recruit)", re.I)
 COMPLAINT_SITES = {
     "consumercomplaints.in": "ConsumerComplaints.in", "voxya.com": "Voxya", "mouthshut.com": "MouthShut",
     "trustpilot.com": "Trustpilot", "reddit.com": "Reddit", "quora.com": "Quora", "complaintboard.in": "ComplaintBoard",
     "scamadviser.com": "ScamAdviser", "pissedconsumer.com": "PissedConsumer", "glassdoor.co.in": "Glassdoor",
     "ambitionbox.com": "AmbitionBox", "cybercrime.gov.in": "Cyber Crime Portal",
 }
-REVIEW_SITES = {"ambitionbox.com": "AmbitionBox", "glassdoor.co.in": "Glassdoor", "glassdoor.com": "Glassdoor", "indeed.com": "Indeed", "in.indeed.com": "Indeed"}
+REVIEW_SITES = {"ambitionbox.com": "AmbitionBox", "glassdoor.co.in": "Glassdoor", "glassdoor.com": "Glassdoor", "indeed.com": "Indeed",
+                "in.indeed.com": "Indeed", "justdial.com": "Justdial", "google.com/maps": "Google Maps"}
+# "fraud" used as a job function or product, not an accusation
+BUSINESS_FRAUD = re.compile(r"\b(?:anti[- ]?)?fraud\s+(?:analyst|analytics|management|risk|detection|prevention|investigat\w*|operations|strategy|team|specialist|solutions?|control|monitoring)|\bfraud alert\b(?=\W{0,3}(?:job seekers|register|login|sign))", re.I)
+AGGREGATORS = ("jooble.org", "jobrapido.com", "simplyhired.co.in", "simplyhired.com", "bebee.com", "jobaaj.com", "unojobs.com",
+               "talent.com", "careerjet.co.in", "adzuna.in", "whatjobs.com", "hiringgo.com", "jobsora.com")
+REGISTRY_SITES = ("zaubacorp.com", "tofler.in", "thecompanycheck.com", "falconebiz.com", "instafinancials.com")
+INSTITUTE = re.compile(r"\b(training (?:institute|center|centre)|institute|academy|coaching|classes|course fees?|placement guarantee)", re.I)
 GENERIC_EMAIL = re.compile(r"[\w.+-]+@(gmail|yahoo|outlook|hotmail|rediffmail|ymail)\.(com|in|co\.in)", re.I)
 
 POSTING_RULES = [
@@ -138,17 +145,35 @@ def _mentions(company: str, text: str) -> bool:
     return all(t in tl for t in toks[:2])
 
 
-def _classify_results(company: str, results: list[dict], engine: str) -> tuple[list[dict], list[dict]]:
-    """Split organic results into (scam-related hits about this company, impersonation-warning hits)."""
+def _is_job_listing(domain: str) -> bool:
+    return bool(board_for(domain)) or any(domain == a or domain.endswith("." + a) for a in AGGREGATORS)
+
+
+def _classify_results(company: str, results: list[dict], engine: str, official_domain: str = "") -> tuple[list[dict], list[dict]]:
+    """Split organic results into (scam-related hits about this company, impersonation-warning hits).
+
+    Ignored: job-board/aggregator pages (their menus say "Fraud Alert"), results that only use
+    "fraud" as a job function ("Fraud Analyst"), and the company's own site unless it is a
+    fraud-alert page (which is an impersonation signal, not a complaint).
+    """
     scam_hits, imp_hits = [], []
     for r in results:
         title, snip, link = r.get("title", ""), r.get("snippet", "") or r.get("description", ""), r.get("link", "")
-        blob = f"{title} {snip}"
-        if not _mentions(company, blob) or not SCAM_WORDS.search(blob):
-            continue
         d = domain_of(link)
+        if _is_job_listing(d):
+            continue
+        blob = BUSINESS_FRAUD.sub(" ", f"{title} {snip}")
+        if not _mentions(company, f"{title} {snip} {link.replace('-', ' ')}") or not SCAM_WORDS.search(blob):
+            continue
+        if d.endswith(("youtube.com", "instagram.com", "facebook.com")):
+            blob = BUSINESS_FRAUD.sub(" ", title)  # sidebars/other videos pollute snippets
+            if not SCAM_WORDS.search(blob):
+                continue
+        own = bool(official_domain) and (d == official_domain or d.endswith("." + official_domain))
+        if own and not IMPERSONATION.search(blob):
+            continue
         item = {"title": title, "link": link, "source": COMPLAINT_SITES.get(_base(d), d), "engine": engine, "snippet": snip[:220]}
-        (imp_hits if IMPERSONATION.search(blob) else scam_hits).append(item)
+        (imp_hits if IMPERSONATION.search(f"{title} {snip} {link}") else scam_hits).append(item)
     return scam_hits, imp_hits
 
 
@@ -175,49 +200,70 @@ def _rating_from(r: dict) -> tuple[float | None, int | None]:
     return (float(rating) if rating is not None else None), reviews
 
 
-def web_signals(client: SerpClient, company: str) -> tuple[list[Signal], list[str], bool, list[str]]:
+def short_name(company: str) -> str:
+    """'Tradexa Technologies Private Limited' -> 'Tradexa Technologies'. Long legal names make search engines drop the quotes."""
+    n = re.sub(r"\b(private|pvt\.?|limited|ltd\.?|llp|inc\.?|opc|\(opc\)|india)\b", " ", company, flags=re.I)
+    n = re.sub(r"\s+", " ", n).strip(" .,-")
+    return n or company
+
+
+def web_signals(client: SerpClient, company: str, apply_domains: list[str] | None = None) -> tuple[list[Signal], list[str], bool, list[str]]:
     signals: list[Signal] = []
     engines: list[str] = []
     errors: list[str] = []
-    q_scam = f'"{company}" scam OR fraud OR fake OR complaint'
+    name = short_name(company)
+    q_scam = f'"{name}" scam OR fraud OR fake OR complaint'
+    pool: list[dict] = []  # every organic result, used for the legitimacy footprint
 
-    # 1) Google: complaint footprint
-    g_scam, g_imp = [], []
-    try:
-        g = client.search("google", q=q_scam, gl="in", hl="en", num=10)
-        engines.append("google")
-        g_scam, g_imp = _classify_results(company, g.get("organic_results", []), "google")
-    except SerpError as e:
-        errors.append(str(e))
+    def run(engine: str, **params) -> list[dict]:
+        try:
+            data = client.search(engine, **params)
+        except SerpError as e:
+            errors.append(str(e))
+            return []
+        if engine not in engines:
+            engines.append(engine)
+        if engine == "google" and data.get("knowledge_graph"):
+            run.kg = run.kg or data["knowledge_graph"]
+        rows = data.get("organic_results", [])
+        pool.extend(rows)
+        return rows
+    run.kg = None
 
-    # 2) Bing: independent second index for the same question
-    b_scam, b_imp = [], []
-    try:
-        b = client.search("bing", q=q_scam, cc="IN")
-        engines.append("bing")
-        b_scam, b_imp = _classify_results(company, b.get("organic_results", []), "bing")
-    except SerpError as e:
-        errors.append(str(e))
+    g_rows = run("google", q=q_scam, gl="in", hl="en", num=10)                  # 1) Google complaint footprint
+    b_rows = run("bing", q=f'"{name}" scam OR fraud OR complaints', cc="IN")    # 2) Bing, independent index
+    run("google", q=f'"{name}" reviews', gl="in", hl="en", num=10)               # 3) Google legitimacy footprint
+    kg = run.kg
 
-    # 3) Google: legitimacy footprint
-    kg, rating, reviews, review_src, official = None, None, None, None, None
-    try:
-        lg = client.search("google", q=f'"{company}" company reviews employees', gl="in", hl="en", num=10)
-        if "google" not in engines:
-            engines.append("google")
-        kg = lg.get("knowledge_graph") or None
-        for r in lg.get("organic_results", []):
-            d = domain_of(r.get("link", ""))
-            base = _base(d)
-            if base in REVIEW_SITES and rating is None and _mentions(company, r.get("title", "")):
-                rating, reviews = _rating_from(r)
-                review_src = {"title": r.get("title", ""), "link": r.get("link", ""), "source": REVIEW_SITES[base]}
-            elif official is None and base not in COMPLAINT_SITES and base not in REVIEW_SITES and _looks_official(company, d):
-                official = {"title": r.get("title", ""), "link": r.get("link", ""), "source": d}
-        if kg and kg.get("website") and not official:
-            official = {"title": kg.get("title", company), "link": kg["website"], "source": domain_of(kg["website"])}
-    except SerpError as e:
-        errors.append(str(e))
+    # ---- legitimacy footprint from everything we saw
+    rating = reviews = review_src = official = registry = None
+    institute_hits = []
+    for r in pool:
+        link, title, snip = r.get("link", ""), r.get("title", ""), r.get("snippet", "") or ""
+        d = domain_of(link)
+        base = _base(d)
+        about_us = _mentions(company, f"{title} {link.replace('-', ' ')}")
+        if base in REVIEW_SITES and rating is None and about_us:
+            rating, reviews = _rating_from(r)
+            if rating is not None or reviews:
+                review_src = {"title": title, "link": link, "source": REVIEW_SITES[base]}
+        if registry is None and any(d.endswith(x) for x in REGISTRY_SITES) and about_us:
+            m = re.search(r"incorporated on (\d{1,2} \w+,? \d{4})", snip, re.I)
+            registry = {"title": title, "link": link, "source": d, "incorporated": m.group(1) if m else ""}
+        if official is None and _looks_official(company, d):
+            official = {"title": title, "link": link, "source": d}
+        if about_us and INSTITUTE.search(f"{title} {snip}") and not _is_job_listing(d):
+            institute_hits.append({"title": title, "link": link, "source": d})
+    if kg and kg.get("website") and not official:
+        official = {"title": kg.get("title", company), "link": kg["website"], "source": domain_of(kg["website"])}
+    if not official:
+        for ad in apply_domains or []:
+            if _looks_official(company, ad):
+                official = {"title": "Apply link on the company's own site", "link": "https://" + ad, "source": ad}
+                break
+    official_domain = official["source"] if official else ""
+    g_scam, g_imp = _classify_results(company, g_rows, "google", official_domain)
+    b_scam, b_imp = _classify_results(company, b_rows, "bing", official_domain)
 
     # ---- turn raw findings into weighted signals
     both = _cross_engine_overlap(g_scam, b_scam)
@@ -247,27 +293,56 @@ def web_signals(client: SerpClient, company: str) -> tuple[list[Signal], list[st
     if kg:
         legit += 1
         signals.append(Signal("kg", "Google shows a Knowledge Graph entry for the company", -12,
-                              detail=kg.get("type", "") or kg.get("description", "")[:120],
+                              detail=kg.get("type", "") or (kg.get("description") or "")[:120],
                               evidence=[{"title": kg.get("title", company), "link": kg.get("website", "") or "", "source": "Google Knowledge Graph"}]))
-    if rating is not None or reviews:
+    if review_src:
         legit += 1
         low = rating is not None and rating < 3.0
-        signals.append(Signal("reviews", f"Employee reviews found on {review_src['source']}" + (f": {rating}/5" if rating else "") + (f" from {reviews:,} reviews" if reviews else ""),
+        signals.append(Signal("reviews", f"Reviews found on {review_src['source']}" + (f": {rating}/5" if rating else "") + (f" from {reviews:,} reviews" if reviews else ""),
                               8 if low else (-12 if (reviews or 0) >= 50 else -6),
-                              detail="Low employee rating" if low else "", evidence=[review_src]))
+                              detail="Low rating" if low else "", evidence=[review_src]))
+    if registry:
+        legit += 1
+        age_note, w = "", -6
+        if registry["incorporated"]:
+            import datetime as _dt
+            try:
+                inc = _dt.datetime.strptime(registry["incorporated"].replace(",", ""), "%d %B %Y")
+                years = (_dt.datetime.now() - inc).days / 365.25
+                age_note = f"incorporated {registry['incorporated']} ({years:.1f} years ago)"
+                if years < 1:
+                    w = 10
+                    age_note += " - very new company"
+            except ValueError:
+                age_note = f"incorporated {registry['incorporated']}"
+        signals.append(Signal("registry", "Listed in the company registry (MCA data via " + registry["source"] + ")", w,
+                              detail=age_note, evidence=[{k: registry[k] for k in ("title", "link", "source")}]))
     if official:
         legit += 1
         signals.append(Signal("official_site", f"Has its own website ({official['source']})", -6, evidence=[official]))
+    if institute_hits:
+        signals.append(Signal("institute", "Looks like a training institute or academy, not a direct employer", 12,
+                              detail="'Job + training' offers from institutes often mean paying course fees. Ask whether any fee is involved before you join.",
+                              evidence=_dedupe(institute_hits)[:3]))
     if engines and legit == 0:
-        signals.append(Signal("no_footprint", "No Knowledge Graph, employee reviews or official website found", 18,
+        signals.append(Signal("no_footprint", "No Knowledge Graph, reviews, registry record or official website found", 18,
                               detail="Brand-new or non-existent companies are a common scam pattern. Not proof on its own."))
     return signals, engines, impersonation, errors
 
 
+STOP = {"pvt", "ltd", "private", "limited", "india", "the", "and", "solutions", "services", "technologies", "technology",
+        "llp", "inc", "company", "consultants", "consultancy", "group", "global", "infotech", "software", "systems"}
+
+
 def _looks_official(company: str, domain: str) -> bool:
-    toks = [t for t in re.findall(r"[a-z0-9]+", company.lower()) if len(t) > 2 and t not in {"pvt", "ltd", "private", "limited", "india", "the", "and"}]
+    toks = [t for t in re.findall(r"[a-z0-9]+", company.lower()) if len(t) > 1 and t not in STOP and t != "by"]
     host = domain.split(":")[0].replace("-", "")
-    return bool(toks) and toks[0] in host and not any(s in host for s in ("linkedin", "naukri", "indeed", "facebook", "instagram", "youtube", "wikipedia", "justdial", "zaubacorp", "tofler", "crunchbase"))
+    blocked = ("linkedin", "naukri", "indeed", "facebook", "instagram", "youtube", "wikipedia", "justdial", "zaubacorp",
+               "tofler", "crunchbase", "glassdoor", "ambitionbox", "shine", "internshala", "mouthshut", "reddit", "quora")
+    if not toks or any(b in host for b in blocked) or any(host.endswith(a) for a in AGGREGATORS):
+        return False
+    label = host.split(".")[0] if not host.startswith("www") else host.split(".")[1]
+    return all(t in label for t in toks[:2])
 
 
 def _norm_link(u: str) -> str:
@@ -297,7 +372,7 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
     if company.lower() in ("confidential", "undisclosed", "not disclosed"):
         company = ""  # nothing meaningful to search for
     if use_web and company:
-        ws, engines, impersonation, errors = web_signals(client, company)
+        ws, engines, impersonation, errors = web_signals(client, company, [a["domain"] for a in job.apply_options] if job else [])
         signals.extend(ws)
 
     raw = 20 + sum(s.weight for s in signals)
@@ -329,6 +404,10 @@ def _headline(level: str, signals: list[Signal], impersonation: bool) -> str:
             return "Real company, but its name is used by impostors. Apply only via the official careers page."
         return "Some warning signs. Check the company's official site and never pay to apply."
     if level == "low":
+        watch = [s for s in signals if s.weight >= 10]
+        if watch:
+            top = max(watch, key=lambda s: s.weight)
+            return f"Low overall risk, but check this: {top.label.lower()}."
         if impersonation:
             return "Looks legitimate. Its name is sometimes misused, so apply only via official channels."
         return "No scam signals found in the posting or on the web."

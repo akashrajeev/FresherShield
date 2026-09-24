@@ -51,9 +51,27 @@ hired.
 2. **Bing complaint search** (`engine=bing`, `cc=IN`): the same query on a second,
    independent index. Scam reports are often thin; seeing the same complaint pages on
    two engines is stronger evidence than one engine alone.
-3. **Google legitimacy search** (`engine=google`):
-   `"<company>" company reviews employees` - used for the Knowledge Graph panel,
-   employee-review rich snippets (AmbitionBox, Glassdoor, Indeed) and an official site.
+3. **Google legitimacy search** (`engine=google`): `"<company>" reviews` - used for
+   the Knowledge Graph panel and review rich snippets (AmbitionBox, Glassdoor, Indeed,
+   Justdial).
+
+Legal suffixes ("Private Limited", "Pvt Ltd", "LLP") are stripped before searching:
+long legal names make engines drop the quotes and return unrelated pages. The
+legitimacy footprint (official site, reviews, registry record, Knowledge Graph) is
+read from **all** results of all three searches, and an apply link on the company's
+own domain also counts as an official site.
+
+### What is *not* counted as a complaint
+
+Early live runs showed three kinds of false positive, so these are filtered out:
+
+- **Job-board and aggregator pages** (Shine, Naukri, Jooble, Jobrapido...). Their
+  menus carry a "Fraud Alert" link, which says nothing about the employer.
+- **"Fraud" as a job function or product** - "Fraud Analyst", "fraud detection",
+  "fraud risk strategy".
+- **The company's own site**, unless it is a fraud-alert page (that becomes an
+  impersonation signal). For YouTube/Instagram only the title is read, because their
+  snippets mix in other videos.
 
 A search result only counts as a complaint when its title or snippet **mentions the
 company name** and **contains a scam word** (scam, fraud, fake, cheated, complaint,
@@ -68,8 +86,10 @@ beware...).
 | Nothing found | -10 | engines ran and returned no scam-linked results |
 | Knowledge Graph entry | -12 | Google shows a company panel |
 | Employee reviews | -12 (50+ reviews) / -6 / +8 if rating < 3.0 | review-site rich snippet |
-| Official website | -6 | a result whose domain matches the company name |
-| No footprint at all | +18 | no Knowledge Graph, no reviews and no official site |
+| Official website | -6 | a result (or apply link) whose domain matches the company name |
+| Registry record | -6, or +10 if incorporated under a year ago | MCA company data on Zaubacorp / Tofler etc.; the incorporation date is read from the snippet |
+| Training institute | +12 | results describe the "employer" as an institute/academy/classes - "job + training" offers often mean course fees |
+| No footprint at all | +18 | no Knowledge Graph, reviews, registry record or official site |
 
 ### Impersonation is not a scam verdict
 

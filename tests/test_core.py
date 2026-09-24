@@ -110,3 +110,23 @@ def test_hidden_company_flag():
     j = Job("6", "Python Developer", "Confidential", "", "", "contact 7019878842")
     ids = {s.id for s in posting_signals(j)}
     assert {"hidden_company", "phone_contact"} <= ids
+
+
+def test_job_board_menus_and_fraud_job_titles_are_ignored():
+    rows = [
+        {"title": "Python Internship Job in Tradexa - Shine", "snippet": "Tradexa is a technology company ... Fraud Alert. Job Seekers", "link": "https://www.shine.com/jobs/x/tradexa-1"},
+        {"title": "Tradexa Senior Fraud Analyst Reviews", "snippet": "Tradexa fraud analyst", "link": "https://www.example.org/tradexa-fraud-analyst"},
+    ]
+    assert _classify_results("Tradexa", rows, "google") == ([], [])
+
+
+def test_company_fraud_alert_page_is_impersonation():
+    rows = [{"title": "Disclaimer - Recruitment Fraud Alert", "snippet": "... fraud ... Infosys BPM", "link": "https://www.infosys.com/careers/apply/recruitment-fraud-alert.html"}]
+    scam, imp = _classify_results("Infosys BPM", rows, "google")
+    assert scam == [] and len(imp) == 1
+
+
+def test_short_name_strips_legal_suffixes():
+    from app.scam import short_name
+    assert short_name("Tradexa Technologies Private Limited") == "Tradexa Technologies"
+    assert short_name("Mahe Technologies Pvt. Ltd.") == "Mahe Technologies"

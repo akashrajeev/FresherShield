@@ -14,6 +14,20 @@ Built for the **SerpApi India Hackathon 2026**, track **Knowledge & Public Inter
 
 **Demo video (1:33, running locally):** https://youtu.be/PF9-dIF4Va0
 
+## Screenshots
+
+| Fresher jobs from Google Jobs, matched to your resume | Scam report on a live listing |
+|---|---|
+| ![Job search results with fresher-fit and resume-match scores](docs/screenshots/jobs.png) | ![Scam report for a listing: Google Maps flags it as a training institute](docs/screenshots/job-report.png) |
+
+| A pasted WhatsApp fee-scam offer | The same report in Hindi |
+|---|---|
+| ![High-risk report for a pasted offer asking for a registration fee](docs/screenshots/offer-report.png) | ![The report with verdict and signals in Hindi](docs/screenshots/offer-report-hi.png) |
+
+Malayalam: [docs/screenshots/offer-report-ml.png](docs/screenshots/offer-report-ml.png) ·
+print / save-as-PDF view: [docs/screenshots/print-hi.png](docs/screenshots/print-hi.png).
+Full request/response walkthroughs: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**.
+
 ## What it does
 
 1. **Find fresher jobs** - live listings from Google Jobs for a role and city,
@@ -32,6 +46,11 @@ Built for the **SerpApi India Hackathon 2026**, track **Knowledge & Public Inter
      it actually a placement agency or training institute rather than an employer?
 4. **Check an offer I got** - paste a WhatsApp/Telegram/email offer and the company
    name, and get the same report.
+5. **Show it to someone before paying** - switch the report to **Hindi or Malayalam**,
+   copy it as plain text, share it on WhatsApp, or print / save it as a one-page PDF with
+   the evidence links spelled out. Fake offers arrive on WhatsApp, often in Hindi or a
+   regional language, and the people a fresher asks first (parents, friends) may not read
+   English.
 
 Big brands whose names are used on fake offer letters are flagged as
 **impersonation risk** ("apply only through the official careers page"), not as scams.
@@ -91,8 +110,9 @@ spend no credits.
 |---|---|---|---|
 | GET | `/api/jobs` | `role`, `location`, `pages` (1-3) | fresher-ranked jobs with match and quick flags |
 | POST | `/api/resume` | multipart `file` (PDF/TXT) or `text` | detected skills |
-| POST | `/api/check` | `{job_id}` or `{company, offer_text}` | risk report with signals and evidence |
-| POST | `/api/check-batch` | `{job_ids: [...]}` (max 10) | reports keyed by job id |
+| POST | `/api/check` | `{job_id}` or `{company, offer_text}`, optional `lang` (`en`/`hi`/`ml`) | risk report with signals, evidence and `share_text` |
+| POST | `/api/check-batch` | `{job_ids: [...]}` (max 10), optional `lang` | reports keyed by job id |
+| GET | `/api/langs` | - | report languages |
 | GET | `/api/status` | - | key present, offline mode, session call stats, credits left |
 
 ## Project layout
@@ -102,11 +122,14 @@ app/
   serp.py      SerpApi client: SQLite cache, offline mode, call ledger
   jobs.py      Google Jobs search, normalization, fresher-fit scoring
   resume.py    skill taxonomy, PDF text extraction, explainable match
-  scam.py      posting red flags + Google/Bing footprint -> risk report
+  scam.py      posting red flags + Google/Bing/Maps footprint -> risk report
+  i18n.py      Hindi/Malayalam report strings + plain-text export
   main.py      FastAPI routes
   static/      single-page UI (plain HTML/CSS/JS, no build step)
 docs/METHODOLOGY.md   how the risk score works, weights, limits
-tests/                unit tests (no network)
+docs/EXAMPLES.md      two worked end-to-end checks with real output
+docs/screenshots/     README images (rebuild: python demo/screenshots.py)
+tests/                unit tests (no network), run by GitHub Actions on every push
 ```
 
 ## Limits
@@ -122,6 +145,8 @@ This project was built with help from an AI assistant (Instinct, an AI agent
 platform). It was used to write and refactor code, write the tests and draft the
 documentation, working from the author's concept and review. The scam-signal rules
 and weights are hand-written and deterministic; the app itself makes no LLM calls.
+The Hindi and Malayalam report strings (`app/i18n.py`) were drafted with the AI
+assistant; corrections from native speakers are welcome.
 The demo video's voiceover is AI text-to-speech, read from a script written for
 the demo (`demo/vo/`); `demo/record_demo.py` + `demo/mix_voiceover.sh` rebuild it.
 

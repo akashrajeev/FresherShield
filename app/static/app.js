@@ -84,7 +84,7 @@ function renderJobs(jobs) {
     $(".thumb", el).src = j.thumbnail || "";
     const bits = [j.company, j.location, j.via && "via " + j.via, j.posted_at, j.schedule_type, j.salary].filter(Boolean);
     $(".meta", el).textContent = bits.join(" · ");
-    $(".flags", el).innerHTML = (j.quick_flags || []).map((f) => `<span class="flag">⚠ ${esc(f)}</span>`).join("");
+    $(".flags", el).innerHTML = (j.quick_flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("");
     const [fv, fc] = pill(j.fresher_score);
     $(".fit b", el).textContent = fv; $(".fit b", el).style.color = fc;
     $(".fit", el).title = (j.fresher_reasons || []).join("\n");

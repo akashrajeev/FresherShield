@@ -3,16 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FresherShield - scam-safe first jobs</title>
+  <title>FresherShield — scam-safe first jobs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header>
-    <div class="brand"><span class="logo">🛡️</span> FresherShield <small>scam-safe first jobs for Indian freshers</small></div>
-    <div id="meter" class="meter" title="SerpApi usage this session">SerpApi: -</div>
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <div class="brand">
+        <svg class="mark" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2.4 20 5.4v6.1c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V5.4l8-3Z" fill="#0c6b57"/>
+          <path d="m8.3 12.1 2.5 2.5 4.9-5.1" stroke="#f7f5f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span class="wordmark">FresherShield</span>
+        <span class="tagline">Scam-safe first jobs for Indian freshers</span>
+      </div>
+      <div id="meter" class="meter" title="SerpApi usage this session">SerpApi · –</div>
+    </div>
   </header>
 
-  <main>
+  <main class="wrap">
+    <div class="masthead">
+      <h1>Find a real first job. Dodge the fake ones.</h1>
+      <p>Live fresher roles from Google Jobs, matched to your resume and cross-checked for scam patterns on Google and Bing — powered by SerpApi.</p>
+    </div>
+
     <nav class="tabs">
       <button class="tab active" data-tab="find">Find jobs</button>
       <button class="tab" data-tab="offer">Check an offer I got</button>
@@ -22,18 +39,18 @@
     <section id="find" class="panel active">
       <div class="grid2">
         <div class="card">
-          <h3>1. Your resume <span class="muted">(optional, stays in memory)</span></h3>
+          <h3><span class="step">Step 1</span> Your resume <span class="muted">(optional, stays in memory)</span></h3>
           <input type="file" id="resumeFile" accept=".pdf,.txt" />
-          <textarea id="resumeText" rows="4" placeholder="...or paste your resume / skills here"></textarea>
+          <textarea id="resumeText" rows="4" placeholder="…or paste your resume / skills here"></textarea>
           <button id="resumeBtn" class="secondary">Read my skills</button>
           <div id="skills" class="chips"></div>
         </div>
         <div class="card">
-          <h3>2. What role, where?</h3>
+          <h3><span class="step">Step 2</span> What role, where?</h3>
           <input id="role" placeholder="e.g. python developer, data analyst, customer support" value="python developer" />
           <input id="location" placeholder="City or India" value="Pune, Maharashtra, India" />
           <button id="searchBtn">Find fresher jobs</button>
-          <p class="muted small">Live data from Google Jobs via SerpApi. Each new search = 1 credit; repeats are cached.</p>
+          <p class="muted small">Live data from Google Jobs via SerpApi. Each new search costs one credit; repeats are served from cache.</p>
         </div>
       </div>
       <div id="status" class="status"></div>
@@ -55,16 +72,21 @@
         <h3>How FresherShield decides</h3>
         <p>Every job is scored on two things: how well it fits <b>you</b>, and how likely it is to be a <b>scam</b>.</p>
         <ol>
-          <li><b>Find</b>: Google Jobs (SerpApi <code>google_jobs</code>) for your role and city, filtered for fresher-friendly wording.</li>
-          <li><b>Match</b>: skills from your resume vs skills the posting asks for. You see what matched and what's missing.</li>
-          <li><b>Posting red flags</b> (free): fees or deposits, WhatsApp-only recruiting, gmail recruiters, "no interview" promises, typing/data-entry earn-per-day pitches, unrealistic pay.</li>
-          <li><b>Web footprint</b> (3 SerpApi searches, cached): Google and Bing searches for the company next to scam/fraud/complaint words, plus a Google check for a Knowledge Graph entry, employee reviews and an official website.</li>
+          <li><b>Find</b> — Google Jobs (SerpApi <code>google_jobs</code>) for your role and city, filtered for fresher-friendly wording.</li>
+          <li><b>Match</b> — skills from your resume vs skills the posting asks for. You see what matched and what's missing.</li>
+          <li><b>Posting red flags</b> (free) — fees or deposits, WhatsApp-only recruiting, gmail recruiters, “no interview” promises, typing/data-entry earn-per-day pitches, unrealistic pay.</li>
+          <li><b>Web footprint</b> (three SerpApi searches, cached) — Google and Bing searches for the company next to scam/fraud/complaint words, plus a Google check for a Knowledge Graph entry, employee reviews and an official website.</li>
         </ol>
-        <p>Big companies often show up with "fake offer letter" warnings because scammers use their names. FresherShield labels that as <b>impersonation risk</b> instead of calling the company a scam.</p>
+        <p>Big companies often show up with “fake offer letter” warnings because scammers use their names. FresherShield labels that as <b>impersonation risk</b> instead of calling the company a scam.</p>
         <p class="muted">This is a triage tool, not a verdict. Always check the official careers page, and never pay to get a job. Report fraud at <a href="https://cybercrime.gov.in" target="_blank" rel="noopener">cybercrime.gov.in</a> or call 1930.</p>
       </div>
     </section>
   </main>
+
+  <footer class="wrap foot">
+    <span>FresherShield · SerpApi India Hackathon 2026 · Knowledge &amp; Public Interest</span>
+    <span>Never pay to get a job.</span>
+  </footer>
 
   <template id="jobTpl">
     <article class="job">

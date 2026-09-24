@@ -12,7 +12,7 @@ looks like a scam, with the evidence shown instead of a black-box score.
 
 Built for the **SerpApi India Hackathon 2026**, track **Knowledge & Public Interest**.
 
-**Demo video (1:33, running locally):** https://youtu.be/PF9-dIF4Va0
+**Demo video (2:15, running locally):** https://youtu.be/0JsrdiKUaqY
 
 ## Screenshots
 

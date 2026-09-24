@@ -1,5 +1,7 @@
 # FresherShield
 
+[![tests](https://github.com/akashrajeev/FresherShield/actions/workflows/tests.yml/badge.svg)](https://github.com/akashrajeev/FresherShield/actions/workflows/tests.yml)
+
 **A scam-safe first-job copilot for freshers in India.**
 
 Every year lakhs of graduates in India look for their first job, and fake job

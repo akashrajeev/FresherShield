@@ -18,6 +18,7 @@ def test_data_entry_high_pay_is_flagged_against_role_band():
     s = pay_signal(job("Data Entry Operator", "Work from home. Salary ₹45,000 per month. No experience."))
     assert s.id == "pay_role" and s.weight == 20
     assert s.params["role"] == "data entry" and s.params["stated"] == "₹5.4 LPA"
+    assert "₹45,000 per month" in s.detail  # quoted as written, cut at the comma
     assert s.evidence and s.evidence[0]["link"].startswith("https://")
 
 

@@ -72,7 +72,10 @@ hired.
    company, a fraud word (fake, racket, duped, arrested...) **and** a jobs word (job,
    recruitment, offer letter, aspirants...) count, so "shares fall after fraud
    allegations" does not. Headlines about fake offers "in the name of" a company are
-   impersonation warnings.
+   impersonation warnings. If the company is clearly established (Knowledge Graph entry,
+   employee reviews, a busy Maps listing) or its name is already known to be misused, all
+   job-fraud news is treated as impersonation (+6): a live run showed "held for fake job
+   offer in Infosys" style headlines are about scams run in a big brand's name, not by it.
 
 Legal suffixes ("Private Limited", "Pvt Ltd", "LLP") are stripped before searching:
 long legal names make engines drop the quotes and return unrelated pages. The

@@ -279,3 +279,15 @@ def test_institute_found_on_web_and_maps_counts_once():
     assert [s.id for s in out] == ["institute", "reviews"]
     assert out[0].weight == 15 and len(out[0].evidence) == 2
     assert [s.id for s in _merge_institute([mp])] == ["maps_institute"]
+
+
+def test_job_fraud_news_about_an_established_company_counts_as_impersonation():
+    from app.scam import Signal, _news_vs_legitimacy
+    news = Signal("news_fraud", "2 news reports", 24, evidence=[{"link": "https://toi.in/a", "title": "Held for fake job offer in Infosys"}])
+    maps = Signal("maps", "On Google Maps: 20 listings", -10)
+    out, imp = _news_vs_legitimacy([news, maps], False)
+    assert imp is True and {s.id for s in out} == {"maps", "news_impersonation"}
+    assert next(s for s in out if s.id == "news_impersonation").weight == 6
+    # an unknown name with no footprint keeps the full news penalty
+    out, imp = _news_vs_legitimacy([news, Signal("no_footprint", "none", 18)], False)
+    assert imp is False and "news_fraud" in {s.id for s in out}

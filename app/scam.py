@@ -188,7 +188,8 @@ def stated_pay(text: str) -> tuple[float, str] | None:
         if annual < 5e4:  # fees, deposits and small sums are not salaries
             continue
         if not best or annual > best[0]:
-            best = (annual, (m.group(0) + window[:15]).strip())
+            tail = re.split(r"[,.;\n]", text[m.end(): m.end() + 25], maxsplit=1)[0] if len(text) == len(t) else ""
+            best = (annual, ((text[m.start(): m.end()] if len(text) == len(t) else m.group(0)) + tail).strip())
     return best
 
 
@@ -658,6 +659,7 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
         company = ""  # nothing meaningful to search for
     if use_web and company:
         ws, engines, impersonation, errors = web_signals(client, company, [a["domain"] for a in job.apply_options] if job else [])
+        ws, impersonation = _news_vs_legitimacy(ws, impersonation)
         signals.extend(ws)
         if job:
             official = next((s.params.get("domain", "") for s in ws if s.id == "official_site"), "")
@@ -699,6 +701,30 @@ def _stats(rating, reviews) -> str:
     """Language-neutral numbers for translated labels, e.g. '★ 4.1/5 · 8,535'."""
     bits = ([f"★ {rating}/5"] if rating else []) + ([f"{int(reviews):,}"] if reviews else [])
     return " · ".join(bits)
+
+
+def _news_vs_legitimacy(signals: list[Signal], impersonation: bool) -> tuple[list[Signal], bool]:
+    """Fake-job news naming a well-established company is almost always about impostors.
+
+    "Event manager held for fake job offer in Infosys" is a scam run in Infosys's name,
+    not by Infosys. When the company has strong signs of being real (Knowledge Graph entry,
+    employee reviews, a busy Maps listing) or its name is already known to be misused,
+    job-fraud news is filed as impersonation instead of counting against the company.
+    """
+    news = next((s for s in signals if s.id == "news_fraud"), None)
+    if not news:
+        return signals, impersonation
+    ids = {s.id for s in signals}
+    established = impersonation or bool(ids & {"kg", "reviews"}) or any(s.id == "maps" and s.weight <= -10 for s in signals)
+    if not established:
+        return signals, impersonation
+    imp = next((s for s in signals if s.id == "news_impersonation"), None)
+    rest = [s for s in signals if s is not news and s is not imp]
+    evidence = _dedupe(((imp.evidence if imp else []) + news.evidence))[:4]
+    rest.append(Signal("news_impersonation", "News reports warn of fake offers using this company's name", 6,
+                       detail="The company itself is usually the victim here. Apply only through its official careers page.",
+                       evidence=evidence))
+    return rest, True
 
 
 def _merge_institute(signals: list[Signal]) -> list[Signal]:

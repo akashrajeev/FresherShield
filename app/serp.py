@@ -131,6 +131,11 @@ class SerpClient:
         self.ledger.append(CallRecord(engine, q, "live", int((time.time() - t0) * 1000)))
         return body
 
+    def is_cached(self, engine: str, **params: Any) -> bool:
+        """True if this search would be answered from the cache or a fixture (no credit spent)."""
+        key = cache_key(engine, params)
+        return self._get_cached(key, allow_stale=self.offline) is not None or self._get_fixture(key) is not None
+
     def account(self) -> dict | None:
         """Plan and remaining searches. The Account API does not use credits."""
         if self.offline or serpapi is None:

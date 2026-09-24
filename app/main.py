@@ -17,7 +17,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from .jobs import Job, search_jobs  # noqa: E402
 from .resume import extract_skills, match, pdf_to_text  # noqa: E402
 from .i18n import LANGS, norm_lang, share_text, translate_report  # noqa: E402
-from .scam import assess  # noqa: E402
+from .scam import assess, estimate_searches  # noqa: E402
 from .serp import OfflineMiss, SerpClient, SerpError  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -150,17 +150,27 @@ async def check_file(file: UploadFile = File(...), company: str = Form(""), lang
     return {"report": _localized(rep, norm_lang(lang)), "company_guess": company, "chars": len(text), "stats": client.stats()}
 
 
+BATCH_MAX = 10
+
+
 class BatchReq(BaseModel):
     job_ids: list[str]
     lang: str = "en"
+    dry_run: bool = False  # only estimate the SerpApi searches the batch would spend
 
 
 @app.post("/api/check-batch")
 def check_batch(req: BatchReq) -> dict:
     """Check several listings at once. Companies are de-duplicated so each costs credits once."""
-    jobs = [j for j in (_jobs.get(i) for i in req.job_ids[:10]) if j]
-    # Warm the cache once per unique company so parallel checks never pay twice.
+    jobs = [j for j in (_jobs.get(i) for i in req.job_ids[:BATCH_MAX]) if j]
     companies = sorted({j.company for j in jobs if j.company})
+    if req.dry_run:
+        est = estimate_searches(client, companies)
+        acct = client.account() if not client.offline else None
+        left = (acct or {}).get("total_searches_left")
+        return {"jobs": len(jobs), **est, "credits_left": left, "offline": client.offline,
+                "affordable": est["searches"] == 0 if client.offline else (left is None or left >= est["searches"])}
+    # Warm the cache once per unique company so parallel checks never pay twice.
     with ThreadPoolExecutor(max_workers=3) as ex:
         list(ex.map(lambda c: assess(client, None, c), companies))
     reports = [assess(client, j, j.company) for j in jobs]

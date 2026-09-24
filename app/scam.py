@@ -720,3 +720,34 @@ def headline_key(level: str, signals: list[Signal], impersonation: bool) -> tupl
 def _headline(level: str, signals: list[Signal], impersonation: bool) -> str:
     key, params = headline_key(level, signals, impersonation)
     return HEADLINES[key].format(**params)
+
+
+class _Estimator:
+    """Stands in for SerpClient to count how many searches a check would spend.
+
+    Cached searches return the real cached body; uncached ones are counted and answered
+    with an empty result, so the check runs through the same code paths without spending.
+    """
+
+    def __init__(self, real: SerpClient):
+        self.real, self.live = real, 0
+
+    def search(self, engine: str, **params) -> dict:
+        if self.real.is_cached(engine, **params):
+            return self.real.search(engine, **params)
+        self.live += 1
+        return {}
+
+
+def estimate_searches(client: SerpClient, companies: list[str]) -> dict:
+    """How many SerpApi searches checking these companies would cost right now."""
+    per: dict[str, int] = {}
+    for c in companies:
+        est = _Estimator(client)
+        try:
+            assess(est, None, c)  # type: ignore[arg-type]
+        except Exception:
+            est.live = max(est.live, 5)
+        per[c] = est.live
+    return {"companies": len(companies), "cached": sum(1 for v in per.values() if v == 0),
+            "searches": sum(per.values()), "per_company": per}

@@ -28,7 +28,9 @@ you paste in the "Check an offer I got" tab).
 | Signal | Weight | Trigger |
 |---|---:|---|
 | Asks for money | +35 | registration/training/security/joining fee, deposit, "refundable", "pay Rs X" |
-| Chat-app recruiting | +15 | WhatsApp, Telegram or a bare Indian mobile number |
+| Chat-app recruiting | +15 | WhatsApp or Telegram |
+| Personal mobile as contact | +6 | a bare Indian mobile number in the posting |
+| Hidden company | +12 | company listed as "Confidential" (web checks are skipped: nothing to search) |
 | Free-email recruiter | +12 | gmail / yahoo / outlook / rediffmail address |
 | No-interview promise | +20 | "no interview", "direct joining", "100% job guarantee" |
 | Easy-money pattern | +20 | typing / data entry / copy-paste / likes + earn per day/week |

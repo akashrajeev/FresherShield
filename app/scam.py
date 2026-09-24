@@ -33,7 +33,8 @@ GENERIC_EMAIL = re.compile(r"[\w.+-]+@(gmail|yahoo|outlook|hotmail|rediffmail|ym
 POSTING_RULES = [
     # (id, label, regex, weight)
     ("fee", "Asks for money (fee / deposit / payment)", r"(registration|training|joining|security|processing|kit|document(?:ation)?|verification|laptop|uniform)\s*(fee|fees|charges?|deposit|amount)|refundable|pay\s*(?:rs\.?|₹|inr)\s*\d|deposit of", 35),
-    ("chat_contact", "Recruiting over WhatsApp/Telegram instead of a company channel", r"whats\s?app|telegram|(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}", 15),
+    ("chat_contact", "Recruiting over WhatsApp/Telegram instead of a company channel", r"whats\s?app|telegram", 15),
+    ("phone_contact", "A personal mobile number is the contact", r"(?<![\w%/.=-])(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?![\w%])", 6),
     ("generic_email", "Recruiter uses a free email address (gmail/yahoo)", None, 12),
     ("no_interview", "Promises a job without an interview", r"no interview|without (?:any )?interview|direct (?:joining|selection)|100% (?:job|placement) guarantee|guaranteed (?:job|placement)|spot offer", 20),
     ("easy_money", "Easy-money work pattern (typing, likes, data entry from phone)", r"(typing|data entry|copy[- ]paste|form filling|like (?:and|&) (?:earn|subscribe)|youtube likes|rating tasks?|review tasks?|captcha)\s*(?:work|job)?.{0,40}(earn|income|daily|per day|weekly|payout)|work from (?:home|mobile).{0,40}earn|earn (?:rs\.?|₹)\s?\d", 20),
@@ -79,6 +80,10 @@ def posting_signals(job: Job) -> list[Signal]:
             m = re.search(pat, text, re.I)
         if m:
             out.append(Signal(rid, label, weight, detail=_snippet(text, m.start(), m.end())))
+
+    if re.fullmatch(r"\s*(confidential|undisclosed|not disclosed|hidden|company)?\s*", job.company or "", re.I) and job.job_id != "pasted":
+        out.append(Signal("hidden_company", "Company name is hidden (\"Confidential\")", 12,
+                          detail="You can't verify an employer you can't name. Ask for the company name before sharing documents."))
 
     pay = _too_good_pay(job.salary + " " + text[:600])
     if pay:
@@ -289,6 +294,8 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
     company = (company or (job.company if job else "")).strip()
     signals: list[Signal] = posting_signals(job) if job else []
     engines, errors, impersonation = [], [], False
+    if company.lower() in ("confidential", "undisclosed", "not disclosed"):
+        company = ""  # nothing meaningful to search for
     if use_web and company:
         ws, engines, impersonation, errors = web_signals(client, company)
         signals.extend(ws)

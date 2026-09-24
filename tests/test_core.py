@@ -99,3 +99,14 @@ def test_assess_big_company_impersonation_is_not_high():
     j = Job("4", "Graduate Trainee", "TCS", "", "", "Freshers 2026", apply_options=[{"title": "TCS", "link": "https://www.tcs.com/careers", "domain": "tcs.com"}])
     r = assess(fc, j, "TCS")
     assert r.impersonation_risk and r.level == "low"
+
+
+def test_tracking_ids_are_not_phone_numbers():
+    j = Job("5", "Walk-in", "Infosys BPM", "", "", "Register at https://x.com/?a=7C638561289526257677%7CUnknown")
+    assert "phone_contact" not in {s.id for s in posting_signals(j)}
+
+
+def test_hidden_company_flag():
+    j = Job("6", "Python Developer", "Confidential", "", "", "contact 7019878842")
+    ids = {s.id for s in posting_signals(j)}
+    assert {"hidden_company", "phone_contact"} <= ids

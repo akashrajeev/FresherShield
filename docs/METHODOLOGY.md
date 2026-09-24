@@ -105,6 +105,21 @@ beware...).
 | Maps says training institute | +10 | category like "Training institute", "Computer training school", "Academy" |
 | No footprint at all | +18 | no Knowledge Graph, reviews, registry record, official site or Maps listing |
 
+### Contact domains (free, runs after the web layer)
+
+Once the company's real domain is known (official site, Knowledge Graph website or an
+apply link on its own domain), every email address and link in the offer is compared
+with it:
+
+| Signal | Weight | Trigger |
+|---|---:|---|
+| Look-alike domain | +25 | a domain containing the brand (`infosys-careers.in`) or 1-2 letters off it (`wipr0.com`) that isn't the real one |
+| Brand in a free-mail address | +12 | `infosys.recruit.hr@gmail.com` |
+| Company's own domain | -6 | contact address on the real domain |
+
+Unknown domains with no brand resemblance are left alone: a small company may simply
+use a domain we couldn't verify.
+
 ### Impersonation is not a scam verdict
 
 Large employers such as TCS, Infosys or Amazon return plenty of "fraud" results,

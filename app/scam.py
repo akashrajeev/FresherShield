@@ -470,6 +470,76 @@ def _dedupe(items: list[dict]) -> list[dict]:
     return out
 
 
+# ----------------------------------------------------------------- contact domains
+EMAIL_RE = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)", re.I)
+URL_RE = re.compile(r"(?:https?://)?(?:www\.)?((?:[a-z0-9-]+\.)+(?:com|in|co\.in|org|net|info|online|site|xyz|io|co|biz|top|live))(?![\w.])", re.I)
+FREE_MAIL = {"gmail.com", "yahoo.com", "yahoo.in", "yahoo.co.in", "outlook.com", "hotmail.com", "rediffmail.com", "ymail.com", "live.com", "icloud.com", "proton.me"}
+
+
+def _root(domain: str) -> str:
+    d = domain.lower().removeprefix("www.")
+    parts = d.split(".")
+    if len(parts) >= 3 and ".".join(parts[-2:]) in ("co.in", "org.in", "net.in", "gov.in", "co.uk"):
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+def _edit1or2(a: str, b: str) -> bool:
+    """True if a and b differ by 1-2 edits (typosquats like 'infosis' vs 'infosys')."""
+    if a == b or abs(len(a) - len(b)) > 2 or min(len(a), len(b)) < 4:
+        return False
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1] <= 2
+
+
+def contact_signals(text: str, company: str, official_domain: str) -> list[Signal]:
+    """Compare email/link domains in an offer with the company's real domain.
+
+    Scammers send offers from look-alike domains (infosys-careers.in, tcs-recruitment.com,
+    wipr0.in) or put the brand in a free-mail address (tcs.hr.recruit@gmail.com).
+    """
+    out: list[Signal] = []
+    official = _root(official_domain) if official_domain else ""
+    toks = [t for t in re.findall(r"[a-z0-9]+", short_name(company).lower()) if len(t) > 2 and t not in STOP]
+    seen: set[str] = set()
+    emails = EMAIL_RE.findall(text)
+    hosts = [d for _, d in emails] + [m.group(1) for m in URL_RE.finditer(text)]
+    own, fakes = [], []
+    for h in hosts:
+        h = h.lower().rstrip(".")
+        r = _root(h)
+        if r in seen or r in FREE_MAIL or _is_job_listing(h):
+            continue
+        seen.add(r)
+        if official and r == official:
+            own.append(h)
+            continue
+        label = r.split(".")[0].replace("-", "")
+        off_label = official.split(".")[0].replace("-", "") if official else ""
+        brand_in = bool(toks) and all(t in label for t in toks[:1])
+        typo = bool(off_label) and _edit1or2(label, off_label)
+        if official and (brand_in or typo):
+            fakes.append(h)
+    if fakes:
+        out.append(Signal("lookalike_domain", f"Contact uses a look-alike domain ({', '.join(fakes[:2])}), not the company's own ({official})", 25,
+                          detail="Real recruiters write from the company's own domain. A domain that only resembles it is a classic impersonation trick.",
+                          params={"domains": ", ".join(fakes[:2]), "official": official}))
+    elif own:
+        out.append(Signal("own_domain", f"Contact uses the company's own domain ({official})", -6, params={"official": official}))
+    for local, dom in emails:
+        if dom.lower() in FREE_MAIL and toks and toks[0] in local.lower():
+            out.append(Signal("brand_free_mail", f"Company name used in a free email address ({local}@{dom})", 12,
+                              detail="Companies don't recruit from gmail/yahoo accounts named after themselves.",
+                              params={"email": f"{local}@{dom}"}))
+            break
+    return out
+
+
 # ----------------------------------------------------------------- combine
 def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = True) -> Report:
     company = (company or (job.company if job else "")).strip()
@@ -480,6 +550,9 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
     if use_web and company:
         ws, engines, impersonation, errors = web_signals(client, company, [a["domain"] for a in job.apply_options] if job else [])
         signals.extend(ws)
+        if job:
+            official = next((s.params.get("domain", "") for s in ws if s.id == "official_site"), "")
+            signals.extend(contact_signals(job.full_text(), company, official))
 
     raw = 20 + sum(s.weight for s in signals)
     score = max(0, min(100, raw))

@@ -218,3 +218,32 @@ def test_negated_fee_mentions_are_not_red_flags():
     assert "fee" not in _ids("Walk-in drive for 2026 graduates. No registration fee is charged at any stage.")
     assert "fee" not in _ids("TCS kisi bhi candidate se fees nahi leta. कोई फीस नहीं ली जाती।")
     assert "fee" in _ids("There is no interview. Pay registration fee of Rs 500 to confirm.")
+
+
+# ---------------------------------------------------------------- look-alike domains
+from app.scam import contact_signals
+
+
+def test_lookalike_and_typosquat_domains_are_flagged():
+    sigs = contact_signals("Offer from hr@infosys-careers.in, details at www.infosys-careers.in/offer", "Infosys", "infosys.com")
+    assert [s.id for s in sigs] == ["lookalike_domain"] and "infosys-careers.in" in sigs[0].label
+    assert contact_signals("Mail talent@wipr0.com", "Wipro", "wipro.com")[0].id == "lookalike_domain"
+
+
+def test_own_domain_is_reassuring_and_free_mail_brand_is_flagged():
+    assert [s.id for s in contact_signals("Write to careers@tcs.com", "TCS", "tcs.com")] == ["own_domain"]
+    ids = [s.id for s in contact_signals("HR: infosys.recruit.hr@gmail.com", "Infosys", "infosys.com")]
+    assert ids == ["brand_free_mail"]
+
+
+def test_unrelated_domains_and_unknown_official_are_left_alone():
+    assert contact_signals("Apply on naukri.com or mail me at abc@gmail.com", "Acme Labs", "acmelabs.in") == []
+    assert contact_signals("hr@quikhire-hr.com", "Quikhire", "") == []
+
+
+def test_lookalike_domain_raises_assessment():
+    legit = {"knowledge_graph": {"title": "Infosys", "website": "https://www.infosys.com"}, "organic_results": []}
+    fc = FakeClient({("google", "reviews"): legit})
+    j = Job("pasted", "", "Infosys", "", "", "Your offer letter is attached. Contact hr@infosys-careers.in to accept.")
+    r = assess(fc, j, "Infosys")
+    assert "lookalike_domain" in {s.id for s in r.signals}

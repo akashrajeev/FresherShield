@@ -169,11 +169,10 @@ def _classify_results(company: str, results: list[dict], engine: str, official_d
             blob = BUSINESS_FRAUD.sub(" ", title)  # sidebars/other videos pollute snippets
             if not SCAM_WORDS.search(blob):
                 continue
-        own = bool(official_domain) and (d == official_domain or d.endswith("." + official_domain))
-        if own and not IMPERSONATION.search(blob):
-            continue
+        own = (bool(official_domain) and (d == official_domain or d.endswith("." + official_domain))) or _looks_official(company, d)
         item = {"title": title, "link": link, "source": COMPLAINT_SITES.get(_base(d), d), "engine": engine, "snippet": snip[:220]}
-        (imp_hits if IMPERSONATION.search(f"{title} {snip} {link}") else scam_hits).append(item)
+        # A scam page on the company's own domain is the company warning about impostors.
+        (imp_hits if own or IMPERSONATION.search(f"{title} {snip} {link}") else scam_hits).append(item)
     return scam_hits, imp_hits
 
 

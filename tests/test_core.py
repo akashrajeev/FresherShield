@@ -130,3 +130,9 @@ def test_short_name_strips_legal_suffixes():
     from app.scam import short_name
     assert short_name("Tradexa Technologies Private Limited") == "Tradexa Technologies"
     assert short_name("Mahe Technologies Pvt. Ltd.") == "Mahe Technologies"
+
+
+def test_scam_pages_on_brand_domains_are_impersonation():
+    rows = [{"title": "Identifying a scam - Amazon Customer Service", "snippet": "Amazon scam", "link": "https://www.amazon.com/gp/help/scam"}]
+    scam, imp = _classify_results("Amazon", rows, "google", "amazon.in")
+    assert scam == [] and len(imp) == 1

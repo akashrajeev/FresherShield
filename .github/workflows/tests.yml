@@ -25,3 +25,16 @@ jobs:
       - run: pytest -v
         env:
           FS_OFFLINE: "1"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t freshershield .
+      # Smoke test: the container starts without a key (offline mode) and serves the UI and API.
+      - run: |
+          docker run -d --name fs -p 8000:8000 freshershield
+          for i in $(seq 1 30); do curl -fs localhost:8000/api/status && break; sleep 1; done
+          curl -fs localhost:8000/api/status | grep -q '"offline":true'
+          curl -fs localhost:8000/ | grep -q FresherShield
+          docker logs fs

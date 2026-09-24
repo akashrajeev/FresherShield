@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -112,6 +113,41 @@ def check(req: CheckReq) -> dict:
         raise HTTPException(400, "Give a job_id from a search or a company name")
     rep = assess(client, job, company, use_web=req.use_web)
     return {"report": _localized(rep, norm_lang(req.lang)), "stats": client.stats()}
+
+
+COMPANY_HINT = re.compile(
+    r"\b([A-Z][A-Za-z0-9&.\-]*(?: [A-Z][A-Za-z0-9&.\-]*){0,5} (?:Private Limited|Pvt\.? Ltd\.?|Limited|Ltd\.?|LLP))(?![A-Za-z])")
+
+
+def guess_company(text: str) -> str:
+    """Best guess at the company an offer letter claims to be from: the most frequent 'X Pvt Ltd'-style name."""
+    names = [m.group(1).strip() for m in COMPANY_HINT.finditer(text)]
+    names = [n for n in names if not n.lower().startswith(("dear", "congratulations", "the ", "we ", "this "))]
+    if not names:
+        return ""
+    return max(set(names), key=lambda n: (names.count(n), -len(n)))
+
+
+@app.post("/api/check-file")
+async def check_file(file: UploadFile = File(...), company: str = Form(""), lang: str = Form("en")) -> dict:
+    """Check an offer letter PDF (or .txt): extract the text, guess the company if not given, run the same report."""
+    data = await file.read()
+    if len(data) > 5_000_000:
+        raise HTTPException(413, "File must be under 5 MB")
+    name = (file.filename or "").lower()
+    if name.endswith(".pdf"):
+        try:
+            text = pdf_to_text(data)
+        except Exception as exc:
+            raise HTTPException(400, f"Could not read that PDF: {exc}")
+    else:
+        text = data.decode("utf-8", errors="ignore")
+    if not text.strip():
+        raise HTTPException(400, "No text found in the file. If it is a scanned image, paste the text instead.")
+    company = company.strip() or guess_company(text)
+    job = Job("pasted", "", company, "", "", text)
+    rep = assess(client, job, company, use_web=bool(company))
+    return {"report": _localized(rep, norm_lang(lang)), "company_guess": company, "chars": len(text), "stats": client.stats()}
 
 
 class BatchReq(BaseModel):

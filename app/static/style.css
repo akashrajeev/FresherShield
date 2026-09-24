@@ -207,6 +207,8 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .repactions .wa:hover { background: #17633e; }
 .printhead, .printfoot { display: none; }
+.filepick { display: block; margin: 4px 0 10px; }
+.filepick input { margin-top: 6px; }
 .topright { display: flex; align-items: center; gap: 14px; }
 .langpick { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .langpick select {

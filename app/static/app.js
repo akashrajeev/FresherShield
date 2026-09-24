@@ -190,6 +190,8 @@ function renderReport(r) {
 $("#offerBtn").addEventListener("click", async () => {
   const text = $("#offerText").value.trim();
   const company = $("#offerCompany").value.trim();
+  const file = $("#offerFile").files[0];
+  if (file) return checkOfferFile(file, company);
   if (!text && !company) return;
   $("#offerBtn").disabled = true;
   $("#offerResult").innerHTML = `<p class="muted"><span class="spinner"></span>Checking the message${company ? " and cross-searching “" + esc(company) + "”" : ""}…</p>`;
@@ -201,3 +203,21 @@ $("#offerBtn").addEventListener("click", async () => {
     $("#offerResult").innerHTML = `<span class="flag">${esc(e.message)}</span>`;
   } finally { $("#offerBtn").disabled = false; refreshStatus(); }
 });
+
+// Offer letter PDF: the server extracts the text and guesses the company if the box is empty.
+async function checkOfferFile(file, company) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("company", company);
+  fd.append("lang", langSel.value);
+  $("#offerBtn").disabled = true;
+  $("#offerResult").innerHTML = `<p class="muted"><span class="spinner"></span>Reading ${esc(file.name)}…</p>`;
+  try {
+    const r = await api("/api/check-file", { method: "POST", body: fd });
+    if (!company && r.company_guess) $("#offerCompany").value = r.company_guess;
+    $("#offerResult").innerHTML = `<div class="offerRep" style="margin-top:12px">${renderReport(r.report)}</div>`;
+    meter(r.stats);
+  } catch (e) {
+    $("#offerResult").innerHTML = `<span class="flag">${esc(e.message)}</span>`;
+  } finally { $("#offerBtn").disabled = false; refreshStatus(); }
+}

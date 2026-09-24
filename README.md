@@ -44,8 +44,10 @@ Full request/response walkthroughs: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**.
    - a legitimacy check: Google Knowledge Graph entry, employee reviews, official site;
    - a **Google Maps** check: does the company have real offices with reviews, and is
      it actually a placement agency or training institute rather than an employer?
-4. **Check an offer I got** - paste a WhatsApp/Telegram/email offer and the company
-   name, and get the same report.
+4. **Check an offer I got** - paste a WhatsApp/Telegram/email offer (English, Hindi or
+   Hinglish) or upload the offer-letter PDF, and get the same report. Recruiter emails and
+   links are compared with the company's real domain to catch look-alikes such as
+   `hr@infosys-careers.in`.
 5. **Show it to someone before paying** - switch the report to **Hindi or Malayalam**,
    copy it as plain text, share it on WhatsApp, or print / save it as a one-page PDF with
    the evidence links spelled out. Fake offers arrive on WhatsApp, often in Hindi or a
@@ -112,6 +114,7 @@ spend no credits.
 | POST | `/api/resume` | multipart `file` (PDF/TXT) or `text` | detected skills |
 | POST | `/api/check` | `{job_id}` or `{company, offer_text}`, optional `lang` (`en`/`hi`/`ml`) | risk report with signals, evidence and `share_text` |
 | POST | `/api/check-batch` | `{job_ids: [...]}` (max 10), optional `lang` | reports keyed by job id |
+| POST | `/api/check-file` | multipart `file` (offer letter PDF/TXT), optional `company`, `lang` | report + the company name guessed from the letter |
 | GET | `/api/langs` | - | report languages |
 | GET | `/api/status` | - | key present, offline mode, session call stats, credits left |
 

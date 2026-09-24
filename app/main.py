@@ -15,6 +15,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from .jobs import Job, search_jobs  # noqa: E402
 from .resume import extract_skills, match, pdf_to_text  # noqa: E402
+from .i18n import LANGS, norm_lang, share_text, translate_report  # noqa: E402
 from .scam import assess  # noqa: E402
 from .serp import OfflineMiss, SerpClient, SerpError  # noqa: E402
 
@@ -87,6 +88,18 @@ class CheckReq(BaseModel):
     company: str | None = None
     offer_text: str | None = None  # paste a WhatsApp/email offer to check it
     use_web: bool = True
+    lang: str = "en"  # en | hi | ml: language of the verdict, headline and signal labels
+
+
+def _localized(rep, lang: str) -> dict:
+    d = translate_report(rep.to_dict(), lang)
+    d["share_text"] = share_text(d)
+    return d
+
+
+@app.get("/api/langs")
+def langs() -> dict:
+    return {"langs": LANGS}
 
 
 @app.post("/api/check")
@@ -98,11 +111,12 @@ def check(req: CheckReq) -> dict:
     if not company and not job:
         raise HTTPException(400, "Give a job_id from a search or a company name")
     rep = assess(client, job, company, use_web=req.use_web)
-    return {"report": rep.to_dict(), "stats": client.stats()}
+    return {"report": _localized(rep, norm_lang(req.lang)), "stats": client.stats()}
 
 
 class BatchReq(BaseModel):
     job_ids: list[str]
+    lang: str = "en"
 
 
 @app.post("/api/check-batch")
@@ -114,7 +128,8 @@ def check_batch(req: BatchReq) -> dict:
     with ThreadPoolExecutor(max_workers=3) as ex:
         list(ex.map(lambda c: assess(client, None, c), companies))
     reports = [assess(client, j, j.company) for j in jobs]
-    return {"reports": {j.job_id: r.to_dict() for j, r in zip(jobs, reports)}, "stats": client.stats()}
+    lang = norm_lang(req.lang)
+    return {"reports": {j.job_id: _localized(r, lang) for j, r in zip(jobs, reports)}, "stats": client.stats()}
 
 
 @app.exception_handler(SerpError)

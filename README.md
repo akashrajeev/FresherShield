@@ -38,13 +38,19 @@ Full request/response walkthroughs: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**.
    missing. The resume stays in memory and is never written to disk.
 3. **Check for scams** - one click per listing:
    - red flags in the posting itself (fees/deposits, WhatsApp-only contact, gmail
-     recruiters, "no interview" promises, earn-per-day typing jobs, unrealistic pay);
+     recruiters, "no interview" promises, earn-per-day typing jobs);
+   - a **salary reality check**: stated pay is compared with the usual fresher range for
+     that kind of role (₹45,000 a month for data entry is a hook, ₹12 LPA for a developer
+     is not), with the salary source linked;
    - a cross-engine check of the company name on **Google and Bing** for scam, fraud
      and complaint results;
    - a legitimacy check: Google Knowledge Graph entry, employee reviews, official site;
    - a **Google News** check for reports of fake-job rackets tied to the name;
    - a **Google Maps** check: does the company have real offices with reviews, and is
      it actually a placement agency or training institute rather than an employer?
+   - or **scan the top 10 listings at once**. The page shows what it will cost first
+     (cached companies are free, a repeated company is searched once) and asks before
+     spending credits.
 4. **Check an offer I got** - paste a WhatsApp/Telegram/email offer (English, Hindi or
    Hinglish) or upload the offer-letter PDF, and get the same report. Recruiter emails and
    links are compared with the company's real domain to catch look-alikes such as
@@ -102,6 +108,20 @@ python -m app.main          # or: uvicorn app.main:app --reload
 Open <http://127.0.0.1:8000>. Get a free SerpApi key (250 searches/month) at
 <https://serpapi.com/manage-api-key>.
 
+Or with `make` (`make help` lists everything): `make run`, `make offline` (cache only,
+spends no credits), `make test`, `make eval`.
+
+### Docker
+
+```bash
+docker build -t freshershield .
+docker run --rm -p 8000:8000 -e SERPAPI_API_KEY=your_key -v fs-cache:/app/.cache freshershield
+```
+
+The volume keeps the SerpApi response cache between runs, so repeat checks stay free.
+Without a key the container starts in offline mode. CI builds the image and smoke-tests it
+on every push.
+
 ### Tests
 
 ```bash
@@ -119,7 +139,7 @@ spend no credits.
 | GET | `/api/jobs` | `role`, `location`, `pages` (1-3) | fresher-ranked jobs with match and quick flags |
 | POST | `/api/resume` | multipart `file` (PDF/TXT) or `text` | detected skills |
 | POST | `/api/check` | `{job_id}` or `{company, offer_text}`, optional `lang` (`en`/`hi`/`ml`) | risk report with signals, evidence and `share_text` |
-| POST | `/api/check-batch` | `{job_ids: [...]}` (max 10), optional `lang` | reports keyed by job id |
+| POST | `/api/check-batch` | `{job_ids: [...]}` (max 10), optional `lang`, `dry_run` | reports keyed by job id; with `dry_run: true`, only the number of SerpApi searches it would spend, cached companies and credits left (spends nothing) |
 | POST | `/api/check-file` | multipart `file` (offer letter PDF/TXT), optional `company`, `lang` | report + the company name guessed from the letter |
 | GET | `/api/langs` | - | report languages |
 | GET | `/api/status` | - | key present, offline mode, session call stats, credits left |

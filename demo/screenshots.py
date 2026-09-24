@@ -21,7 +21,7 @@ RESUME = "B.Tech Computer Science, 2026. Skills: Python, Django, SQL, Git, HTML,
 # A composite of common fee-scam messages; the company name is invented (see docs/EXAMPLES.md).
 OFFER_COMPANY = "Quikhire Global Staffing"
 OFFER = """Congratulations!! You are shortlisted for Work From Home Data Entry job at Quikhire Global Staffing.
-Salary Rs 28,000/month, no experience needed, no interview, direct joining.
+Salary Rs 45,000/month, no experience needed, no interview, direct joining.
 Pay Rs 1,999 registration fee (100% refundable) to confirm your seat. Limited slots.
 Contact HR Neha on WhatsApp 98xxxxxx21 or quikhire.hr@gmail.com today only."""
 

@@ -10,6 +10,8 @@ looks like a scam, with the evidence shown instead of a black-box score.
 
 Built for the **SerpApi India Hackathon 2026**, track **Knowledge & Public Interest**.
 
+**Demo video (1:33, running locally):** https://youtu.be/PF9-dIF4Va0
+
 ## What it does
 
 1. **Find fresher jobs** - live listings from Google Jobs for a role and city,

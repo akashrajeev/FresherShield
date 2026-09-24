@@ -26,19 +26,58 @@ Earn Rs 3000 per day, no experience needed, no interview.
 Pay Rs 1999 registration fee (100% refundable) to confirm your seat.
 Limited slots. Contact HR Priya on WhatsApp 98xxxxxx21 today only."""
 
+CAPTION_CSS = (
+    "position:fixed;left:36px;bottom:30px;z-index:98;"
+    "background:rgba(22,24,29,.94);color:#f7f5f0;"
+    "padding:13px 20px 13px 17px;border-left:3px solid #2f9c82;border-radius:6px;"
+    "font:500 16px/1.5 Inter,system-ui,sans-serif;max-width:620px;text-align:left;"
+    "box-shadow:0 10px 30px rgba(0,0,0,.28)"
+)
+
+OVERLAY_CSS = (
+    "position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;"
+    "align-items:center;justify-content:center;background:#16181d;color:#f7f5f0;"
+    "font-family:Inter,system-ui,sans-serif;text-align:center;padding:0 90px"
+)
+
 
 def caption(page, text):
-    page.evaluate("""t => {
+    page.evaluate("""([t, css]) => {
       let c = document.getElementById('demo-cap');
       if (!c) { c = document.createElement('div'); c.id = 'demo-cap';
-        c.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;background:#1f6feb;color:#fff;padding:10px 18px;border-radius:10px;font:600 17px system-ui;box-shadow:0 6px 24px #0008;max-width:90%;text-align:center';
-        document.body.appendChild(c); }
-      c.textContent = t; }""", text)
+        c.style.cssText = css; document.body.appendChild(c); }
+      c.textContent = t; }""", [text, CAPTION_CSS])
+
+
+def overlay(page, inner_html):
+    page.evaluate("""([h, css]) => {
+      let o = document.getElementById('demo-ovl');
+      if (!o) { o = document.createElement('div'); o.id = 'demo-ovl';
+        o.style.cssText = css; document.body.appendChild(o); }
+      o.innerHTML = h; o.style.display = 'flex'; }""", [inner_html, OVERLAY_CSS])
+
+
+def clear_overlay(page):
+    page.evaluate("() => { const o = document.getElementById('demo-ovl'); if (o) o.style.display = 'none'; }")
 
 
 def slow_type(page, sel, text, delay=12):
     page.click(sel)
     page.keyboard.type(text, delay=delay)
+
+
+TITLE_CARD = """
+  <div style="font:600 13px Inter,system-ui;letter-spacing:.22em;color:#2f9c82;margin-bottom:22px">SERPAPI INDIA HACKATHON 2026</div>
+  <div style="font:600 52px/1.15 Fraunces,Georgia,serif;letter-spacing:-.01em;max-width:820px">FresherShield</div>
+  <div style="font:500 21px/1.5 Fraunces,Georgia,serif;color:#c9c4b8;margin-top:14px;max-width:700px">Find a real first job. Dodge the fake ones.</div>
+  <div style="font:400 15px/1.6 Inter,system-ui;color:#9aa1a9;margin-top:26px;max-width:560px">Live fresher jobs from Google Jobs, matched to your resume and cross-checked for scams on Google and Bing.</div>
+"""
+
+END_CARD = """
+  <div style="font:600 44px/1.15 Fraunces,Georgia,serif;letter-spacing:-.01em">FresherShield</div>
+  <div style="font:500 16px Inter,system-ui;color:#c9c4b8;margin-top:16px">github.com/akashrajeev/FresherShield</div>
+  <div style="font:400 13.5px Inter,system-ui;color:#9aa1a9;margin-top:10px;letter-spacing:.06em">BUILT ON SERPAPI &nbsp;·&nbsp; KNOWLEDGE &amp; PUBLIC INTEREST TRACK</div>
+"""
 
 
 def main():
@@ -54,10 +93,12 @@ def main():
         ctx = b.new_context(viewport={"width": 1280, "height": 760}, record_video_dir=str(OUT), record_video_size={"width": 1280, "height": 760})
         pg = ctx.new_page()
         pg.goto(f"http://127.0.0.1:{PORT}/")
-        caption(pg, "FresherShield: find real first jobs in India, and spot scam postings before you apply")
-        pg.wait_for_timeout(4500)
+        pg.wait_for_timeout(1200)  # let fonts settle before the title card
+        overlay(pg, TITLE_CARD)
+        pg.wait_for_timeout(5000)
+        clear_overlay(pg)
 
-        caption(pg, "1. Paste your resume (or upload a PDF). Skills are extracted locally.")
+        caption(pg, "1. Paste your resume (or upload a PDF) — skills are read locally, nothing leaves the session")
         slow_type(pg, "#resumeText", RESUME, delay=4)
         pg.click("#resumeBtn")
         pg.wait_for_selector("#skills .chip")
@@ -69,7 +110,7 @@ def main():
         pg.click("#searchBtn")
         pg.wait_for_selector(".job")
         pg.wait_for_timeout(1500)
-        caption(pg, "Ranked by fresher fit. Each card shows your skill match: what you have and what's missing")
+        caption(pg, "Ranked by fresher fit — each card shows your skill match: what you have, and what's missing")
         pg.mouse.wheel(0, 380)
         pg.wait_for_timeout(4500)
 
@@ -83,8 +124,8 @@ def main():
             pg.mouse.wheel(0, 120)
             pg.wait_for_timeout(hold)
 
-        check("Tradexa", "3. Scam check: Google + Bing complaint search and a legitimacy footprint, all via SerpApi")
-        caption(pg, "Knowledge Graph, AmbitionBox reviews, MCA registry and own website: low risk, every signal linked")
+        check("Tradexa", "3. Scam check: Google + Bing complaint search plus a legitimacy footprint, all via SerpApi")
+        caption(pg, "Knowledge Graph, AmbitionBox reviews, MCA registry and its own website — low risk, every signal linked")
         pg.wait_for_timeout(5000)
         check("Infosys BPM", "Big brands get flagged for impersonation (fake offer letters), not called scams")
         check("Java By Kiran", "A 'job' from a training institute: flagged, with a complaint about non-refundable fees")
@@ -102,11 +143,12 @@ def main():
         pg.mouse.wheel(0, 500)
         pg.wait_for_timeout(4000)
 
-        caption(pg, "5. The scoring is open: every weight and rule is documented in the repo")
+        caption(pg, "5. The scoring is open — every weight and rule is documented in the repo")
         pg.click("text=How it works")
-        pg.wait_for_timeout(7000)
-        caption(pg, "FresherShield - github.com/akashrajeev/FresherShield - built on SerpApi")
-        pg.wait_for_timeout(4000)
+        pg.wait_for_timeout(6500)
+        caption(pg, "")
+        overlay(pg, END_CARD)
+        pg.wait_for_timeout(4500)
 
         video = pg.video.path()
         ctx.close()

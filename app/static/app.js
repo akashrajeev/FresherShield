@@ -106,7 +106,7 @@ function renderJobs(jobs) {
     $(".checkBtn", el).addEventListener("click", async (ev) => {
       const b = ev.currentTarget;
       b.disabled = true;
-      $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Cross-checking “${esc(j.company)}” on Google + Bing…</span>`;
+      $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Cross-checking “${esc(j.company)}” on Google, Bing and Maps…</span>`;
       try {
         const r = await api("/api/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: j.job_id }) });
         $(".report", el).innerHTML = renderReport(r.report);

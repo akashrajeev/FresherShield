@@ -44,7 +44,7 @@ you paste in the "Check an offer I got" tab).
 (high) whatever else is found. Legitimate employers do not charge candidates to be
 hired.
 
-## Layer 2: the web footprint (3 SerpApi searches per company, cached)
+## Layer 2: the web footprint (4 SerpApi searches per company, cached)
 
 1. **Google complaint search** (`engine=google`, `gl=in`):
    `"<company>" scam OR fraud OR fake OR complaint`
@@ -54,11 +54,16 @@ hired.
 3. **Google legitimacy search** (`engine=google`): `"<company>" reviews` - used for
    the Knowledge Graph panel and review rich snippets (AmbitionBox, Glassdoor, Indeed,
    Justdial).
+4. **Google Maps search** (`engine=google_maps`, `type=search`, whole-India map view):
+   the company's short name. Real employers usually have offices on Maps with
+   reviews; fee-scam "companies" usually have none. Only places whose name matches the
+   company count. The place category is also read: an "Employment agency" or
+   "Training institute" is not the employer the offer claims to be.
 
 Legal suffixes ("Private Limited", "Pvt Ltd", "LLP") are stripped before searching:
 long legal names make engines drop the quotes and return unrelated pages. The
 legitimacy footprint (official site, reviews, registry record, Knowledge Graph) is
-read from **all** results of all three searches, and an apply link on the company's
+read from **all** results of the three web searches plus the Maps listing, and an apply link on the company's
 own domain also counts as an official site.
 
 ### What is *not* counted as a complaint
@@ -89,7 +94,11 @@ beware...).
 | Official website | -6 | a result (or apply link) whose domain matches the company name |
 | Registry record | -6, or +10 if incorporated under a year ago | MCA company data on Zaubacorp / Tofler etc.; the incorporation date is read from the snippet |
 | Training institute | +12 | results describe the "employer" as an institute/academy/classes - "job + training" offers often mean course fees |
-| No footprint at all | +18 | no Knowledge Graph, reviews, registry record or official site |
+| On Google Maps | -10 (20+ reviews in total) / -4, or +6 if rated under 3.0 with 10+ reviews | Maps listings whose name matches the company |
+| No Maps listing | +4 | Maps returned no place with this name (weak: remote-first startups may have none) |
+| Maps says placement agency | +6 | category like "Employment agency", "Placement consultant", "Manpower" |
+| Maps says training institute | +10 | category like "Training institute", "Computer training school", "Academy" |
+| No footprint at all | +18 | no Knowledge Graph, reviews, registry record, official site or Maps listing |
 
 ### Impersonation is not a scam verdict
 

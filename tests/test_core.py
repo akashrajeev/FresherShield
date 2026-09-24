@@ -84,10 +84,10 @@ def test_assess_high_risk_unknown_company():
     fc = FakeClient({("google", "scam"): scam_rows, ("bing", "scam"): scam_rows, ("google", "reviews"): {"organic_results": []}})
     j = Job("3", "Data entry", "QuickEarn Solutions", "", "", "Registration fee Rs 1500. Contact on WhatsApp.")
     r = assess(fc, j, j.company)
-    assert r.level == "high" and r.engines_used == ["google", "bing", "google_maps"]
+    assert r.level == "high" and r.engines_used == ["google", "bing", "google_maps", "google_news"]
     ids = {s.id for s in r.signals}
     assert {"fee", "web_scam", "complaint_sites", "no_footprint", "maps_absent"} <= ids
-    assert len(fc.calls) == 4
+    assert len(fc.calls) == 5
 
 
 def test_assess_big_company_impersonation_is_not_high():
@@ -247,3 +247,25 @@ def test_lookalike_domain_raises_assessment():
     j = Job("pasted", "", "Infosys", "", "", "Your offer letter is attached. Contact hr@infosys-careers.in to accept.")
     r = assess(fc, j, "Infosys")
     assert "lookalike_domain" in {s.id for s in r.signals}
+
+
+# ---------------------------------------------------------------- Google News signal
+from app.scam import news_signals
+
+
+def test_news_fraud_reports_count_and_impostor_news_does_not():
+    items = [
+        {"title": "Police bust fake job racket run by QuickEarn Solutions, 3 arrested", "link": "https://news.example/a", "source": {"name": "The Hindu"}},
+        {"title": "QuickEarn Solutions duped 200 job aspirants of Rs 2 crore", "link": "https://news.example/b", "source": {"name": "TOI"}},
+        {"title": "QuickEarn Solutions opens new office", "link": "https://news.example/c"},
+    ]
+    sigs = news_signals("QuickEarn Solutions", items)
+    assert [s.id for s in sigs] == ["news_fraud"] and sigs[0].weight == 24 and len(sigs[0].evidence) == 2
+    imp = news_signals("TCS", [{"title": "Beware of fake job offers in the name of TCS, police warn", "link": "https://n.example/x"}])
+    assert [s.id for s in imp] == ["news_impersonation"]
+
+
+def test_news_needs_jobs_context_and_company_mention():
+    items = [{"title": "Infosys shares fall after fraud allegations at client", "link": "https://n.example/1"},
+             {"title": "Fake job racket busted in Pune", "link": "https://n.example/2"}]
+    assert news_signals("Infosys", items) == []

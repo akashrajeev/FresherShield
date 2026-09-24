@@ -268,6 +268,7 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
     run("google", q=f'"{name}" reviews', gl="in", hl="en", num=10)               # 3) Google legitimacy footprint
     kg = run.kg
     places = maps_places(client, name, engines, errors)                          # 4) Google Maps: real offices
+    news = news_items(client, name, engines, errors)                             # 5) Google News: fraud reports
 
     # ---- legitimacy footprint from everything we saw
     rating = reviews = review_src = official = registry = None
@@ -360,6 +361,7 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
         signals.append(Signal("institute", "Looks like a training institute or academy, not a direct employer", 12,
                               detail="'Job + training' offers from institutes often mean paying course fees. Ask whether any fee is involved before you join.",
                               evidence=_dedupe(institute_hits)[:3]))
+    signals.extend(news_signals(company, news))
     maps_sig = maps_signals(company, places) if places is not None else []
     for sig in maps_sig:
         if sig.id == "maps":
@@ -369,6 +371,55 @@ def web_signals(client: SerpClient, company: str, apply_domains: list[str] | Non
         signals.append(Signal("no_footprint", "No Knowledge Graph, reviews, registry record, official website or Maps listing found", 18,
                               detail="Brand-new or non-existent companies are a common scam pattern. Not proof on its own."))
     return signals, engines, impersonation, errors
+
+
+# ----------------------------------------------------------------- Google News layer
+NEWS_FRAUD = re.compile(r"(fake|bogus|fraud(?:ulent)?|scam|racket|duped|cheat(?:ed|ing)?|arrest(?:ed|s)?|busted|police|FIR\b|conned|swindl|looted|extort|trap)", re.I)
+NEWS_JOBS = re.compile(r"(job|jobs|recruit|hiring|offer letter|placement|employment|candidates|aspirants|freshers|work from home|task|interview)", re.I)
+
+
+def news_items(client: SerpClient, name: str, engines: list[str], errors: list[str]) -> list[dict]:
+    """Google News for the company name next to job-fraud words. Stories with sub-stories are flattened."""
+    try:
+        data = client.search("google_news", q=f'"{name}" fake job OR scam OR fraud OR arrested', gl="in", hl="en")
+    except SerpError as e:
+        errors.append(str(e))
+        return []
+    if "google_news" not in engines:
+        engines.append("google_news")
+    out = []
+    for r in data.get("news_results") or []:
+        out.append(r)
+        out.extend(r.get("stories") or [])
+    return out
+
+
+def news_signals(company: str, items: list[dict]) -> list[Signal]:
+    """News reports that tie this name to job fraud.
+
+    A report about impostors ("fake offers in the name of X") is impersonation, not evidence
+    against X. Only headlines that mention the company AND a fraud word AND a jobs word count.
+    """
+    fraud, imp = [], []
+    for it in items:
+        title = it.get("title", "")
+        if not it.get("link") or not _mentions(company, title) or not NEWS_FRAUD.search(title) or not NEWS_JOBS.search(title):
+            continue
+        src = (it.get("source") or {}).get("name", "") if isinstance(it.get("source"), dict) else str(it.get("source") or "")
+        item = {"title": title, "link": it["link"], "source": src or domain_of(it["link"]), "engine": "google_news",
+                "snippet": str(it.get("date") or "")[:40]}
+        (imp if IMPERSONATION.search(title) else fraud).append(item)
+    out = []
+    fraud, imp = _dedupe(fraud), _dedupe(imp)
+    if fraud:
+        out.append(Signal("news_fraud", f"{len(fraud)} news report(s) link this name to job fraud", min(30, 12 + 6 * len(fraud)),
+                          detail="News coverage of arrests or complaints is stronger evidence than forum posts. Read the headlines: some may be about impostors.",
+                          evidence=fraud[:4], params={"n": len(fraud)}))
+    if imp:
+        out.append(Signal("news_impersonation", "News reports warn of fake offers using this company's name", 6,
+                          detail="The company itself is usually the victim here. Apply only through its official careers page.",
+                          evidence=imp[:3]))
+    return out
 
 
 # ----------------------------------------------------------------- Google Maps layer

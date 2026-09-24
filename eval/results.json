@@ -1,0 +1,35 @@
+{
+  "n": 40,
+  "tp": 20,
+  "fp": 1,
+  "tn": 19,
+  "fn": 0,
+  "precision": 0.952,
+  "recall": 1.0,
+  "f1": 0.976,
+  "accuracy": 0.975,
+  "by_lang": {
+    "en": {
+      "n": 32,
+      "correct": 31
+    },
+    "hinglish": {
+      "n": 4,
+      "correct": 4
+    },
+    "hi": {
+      "n": 4,
+      "correct": 4
+    }
+  },
+  "misses": [
+    {
+      "id": "g09",
+      "label": "genuine",
+      "score": 35,
+      "signals": [
+        "chat_contact"
+      ]
+    }
+  ]
+}

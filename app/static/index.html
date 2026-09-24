@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FresherShield - scam-safe first jobs</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">🛡️</span> FresherShield <small>scam-safe first jobs for Indian freshers</small></div>
+    <div id="meter" class="meter" title="SerpApi usage this session">SerpApi: -</div>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button class="tab active" data-tab="find">Find jobs</button>
+      <button class="tab" data-tab="offer">Check an offer I got</button>
+      <button class="tab" data-tab="how">How it works</button>
+    </nav>
+
+    <section id="find" class="panel active">
+      <div class="grid2">
+        <div class="card">
+          <h3>1. Your resume <span class="muted">(optional, stays in memory)</span></h3>
+          <input type="file" id="resumeFile" accept=".pdf,.txt" />
+          <textarea id="resumeText" rows="4" placeholder="...or paste your resume / skills here"></textarea>
+          <button id="resumeBtn" class="secondary">Read my skills</button>
+          <div id="skills" class="chips"></div>
+        </div>
+        <div class="card">
+          <h3>2. What role, where?</h3>
+          <input id="role" placeholder="e.g. python developer, data analyst, customer support" value="python developer" />
+          <input id="location" placeholder="City or India" value="Pune, Maharashtra, India" />
+          <button id="searchBtn">Find fresher jobs</button>
+          <p class="muted small">Live data from Google Jobs via SerpApi. Each new search = 1 credit; repeats are cached.</p>
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+      <div id="results"></div>
+    </section>
+
+    <section id="offer" class="panel">
+      <div class="card">
+        <h3>Got a job offer on WhatsApp, Telegram or email? Check it before you reply.</h3>
+        <input id="offerCompany" placeholder="Company name in the message" />
+        <textarea id="offerText" rows="8" placeholder="Paste the full message here"></textarea>
+        <button id="offerBtn">Check this offer</button>
+      </div>
+      <div id="offerResult"></div>
+    </section>
+
+    <section id="how" class="panel">
+      <div class="card prose">
+        <h3>How FresherShield decides</h3>
+        <p>Every job is scored on two things: how well it fits <b>you</b>, and how likely it is to be a <b>scam</b>.</p>
+        <ol>
+          <li><b>Find</b>: Google Jobs (SerpApi <code>google_jobs</code>) for your role and city, filtered for fresher-friendly wording.</li>
+          <li><b>Match</b>: skills from your resume vs skills the posting asks for. You see what matched and what's missing.</li>
+          <li><b>Posting red flags</b> (free): fees or deposits, WhatsApp-only recruiting, gmail recruiters, "no interview" promises, typing/data-entry earn-per-day pitches, unrealistic pay.</li>
+          <li><b>Web footprint</b> (3 SerpApi searches, cached): Google and Bing searches for the company next to scam/fraud/complaint words, plus a Google check for a Knowledge Graph entry, employee reviews and an official website.</li>
+        </ol>
+        <p>Big companies often show up with "fake offer letter" warnings because scammers use their names. FresherShield labels that as <b>impersonation risk</b> instead of calling the company a scam.</p>
+        <p class="muted">This is a triage tool, not a verdict. Always check the official careers page, and never pay to get a job. Report fraud at <a href="https://cybercrime.gov.in" target="_blank" rel="noopener">cybercrime.gov.in</a> or call 1930.</p>
+      </div>
+    </section>
+  </main>
+
+  <template id="jobTpl">
+    <article class="job">
+      <div class="jobhead">
+        <img class="thumb" alt="" />
+        <div class="jobmain">
+          <h4 class="title"></h4>
+          <div class="meta"></div>
+          <div class="flags"></div>
+        </div>
+        <div class="scores">
+          <div class="score fit"><b></b><span>fresher fit</span></div>
+          <div class="score match"><b></b><span>your match</span></div>
+        </div>
+      </div>
+      <div class="skillrow"></div>
+      <div class="actions">
+        <button class="checkBtn">Check for scams</button>
+        <a class="apply" target="_blank" rel="noopener">Apply links</a>
+        <button class="descBtn secondary">Details</button>
+      </div>
+      <div class="desc hidden"></div>
+      <div class="report"></div>
+    </article>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

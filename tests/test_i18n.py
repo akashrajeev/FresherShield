@@ -30,7 +30,7 @@ def test_every_signal_the_engine_can_emit_has_a_translation():
     ids |= {s.id for s in maps_signals("CodeGuru Academy", [{"title": "CodeGuru Academy", "type": "Training institute"}])}
     ids |= {"boards", "unknown_apply", "no_apply", "web_scam", "complaint_sites", "impersonation", "web_clean", "kg",
             "reviews", "registry", "official_site", "institute", "no_footprint", "maps_absent",
-            "lookalike_domain", "own_domain", "brand_free_mail"}
+            "lookalike_domain", "own_domain", "brand_free_mail", "news_fraud", "news_impersonation"}
     for lang in ("hi", "ml"):
         assert ids <= set(LABELS[lang]), ids - set(LABELS[lang])
 

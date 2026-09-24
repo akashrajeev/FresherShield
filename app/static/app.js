@@ -106,7 +106,7 @@ function renderJobs(jobs) {
     $(".checkBtn", el).addEventListener("click", async (ev) => {
       const b = ev.currentTarget;
       b.disabled = true;
-      $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Cross-checking “${esc(j.company)}” on Google, Bing and Maps…</span>`;
+      $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Cross-checking “${esc(j.company)}” on Google, Bing, Maps and News…</span>`;
       try {
         const r = await runCheck($(".report", el), { job_id: j.job_id });
         meter(r.stats);

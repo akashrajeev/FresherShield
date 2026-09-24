@@ -42,6 +42,7 @@ Full request/response walkthroughs: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**.
    - a cross-engine check of the company name on **Google and Bing** for scam, fraud
      and complaint results;
    - a legitimacy check: Google Knowledge Graph entry, employee reviews, official site;
+   - a **Google News** check for reports of fake-job rackets tied to the name;
    - a **Google Maps** check: does the company have real offices with reviews, and is
      it actually a placement agency or training institute rather than an employer?
 4. **Check an offer I got** - paste a WhatsApp/Telegram/email offer (English, Hindi or
@@ -71,10 +72,11 @@ that number.
 | [Google Search API](https://serpapi.com/search-api) | `google` | (a) complaint search `"<company>" scam OR fraud OR fake OR complaint`; (b) legitimacy search for `knowledge_graph`, review rich snippets and the official site | Complaint forums, Reddit threads and company fraud-alert pages are where scam evidence lives. The Knowledge Graph and review snippets are strong signals that a company is real. |
 | [Bing Search API](https://serpapi.com/bing-search-api) | `bing` | Same complaint query, `cc=IN` | A second, independent index. Scam reports are thin and noisy; the same complaint page appearing on two engines is much stronger evidence than one. |
 | [Google Maps API](https://serpapi.com/google-maps-api) | `google_maps` | Company-name search across India (`type=search`): matching places, review counts, ratings, category | Real employers have offices people have reviewed; fee-scam "companies" usually don't exist on a map. The category catches "companies" that are really placement agencies or training institutes. |
+| [Google News API](https://serpapi.com/google-news-api) | `google_news` | `"<company>" fake job OR scam OR fraud OR arrested`, `gl=in` | Police busts of fake-job rackets make the news. A headline tying the name to duped job seekers is stronger evidence than a forum post, and "fake offers in the name of X" headlines are recognised as impersonation. |
 | [Account API](https://serpapi.com/account-api) | - | Remaining-credits meter in the header | Free call; keeps the free-tier budget visible. |
 
-Every feature except resume parsing runs on SerpApi data. A full scam check costs 4
-searches per company (Google x2, Bing, Google Maps). The official [`serpapi` Python client](https://github.com/serpapi/serpapi-python) is used for all calls.
+Every feature except resume parsing runs on SerpApi data. A full scam check costs 5
+searches per company (Google x2, Bing, Google Maps, Google News). The official [`serpapi` Python client](https://github.com/serpapi/serpapi-python) is used for all calls.
 
 ### Staying inside the free tier
 

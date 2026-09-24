@@ -49,7 +49,7 @@ the same clause ("No registration fee is charged", "कोई फीस नह�
 (high) whatever else is found. Legitimate employers do not charge candidates to be
 hired.
 
-## Layer 2: the web footprint (4 SerpApi searches per company, cached)
+## Layer 2: the web footprint (5 SerpApi searches per company, cached)
 
 1. **Google complaint search** (`engine=google`, `gl=in`):
    `"<company>" scam OR fraud OR fake OR complaint`
@@ -64,6 +64,14 @@ hired.
    reviews; fee-scam "companies" usually have none. Only places whose name matches the
    company count. The place category is also read: an "Employment agency" or
    "Training institute" is not the employer the offer claims to be.
+
+5. **Google News search** (`engine=google_news`, `gl=in`):
+   `"<company>" fake job OR scam OR fraud OR arrested`. A news report of a busted fake-job
+   racket is much stronger evidence than a forum post. Only headlines that mention the
+   company, a fraud word (fake, racket, duped, arrested...) **and** a jobs word (job,
+   recruitment, offer letter, aspirants...) count, so "shares fall after fraud
+   allegations" does not. Headlines about fake offers "in the name of" a company are
+   impersonation warnings.
 
 Legal suffixes ("Private Limited", "Pvt Ltd", "LLP") are stripped before searching:
 long legal names make engines drop the quotes and return unrelated pages. The
@@ -100,6 +108,8 @@ beware...).
 | Registry record | -6, or +10 if incorporated under a year ago | MCA company data on Zaubacorp / Tofler etc.; the incorporation date is read from the snippet |
 | Training institute | +12 | results describe the "employer" as an institute/academy/classes - "job + training" offers often mean course fees |
 | On Google Maps | -10 (20+ reviews in total) / -4, or +6 if rated under 3.0 with 10+ reviews | Maps listings whose name matches the company |
+| Job-fraud news | +12 + 6 per report (max +30) | Google News headlines tying the name to a fake-job racket, arrests, duped aspirants |
+| Impostor news | +6 | news warning of fake offers using the company's name |
 | No Maps listing | +4 | Maps returned no place with this name (weak: remote-first startups may have none) |
 | Maps says placement agency | +6 | category like "Employment agency", "Placement consultant", "Manpower" |
 | Maps says training institute | +10 | category like "Training institute", "Computer training school", "Academy" |

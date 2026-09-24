@@ -115,6 +115,8 @@ This project was built with help from an AI assistant (Instinct, an AI agent
 platform). It was used to write and refactor code, write the tests and draft the
 documentation, working from the author's concept and review. The scam-signal rules
 and weights are hand-written and deterministic; the app itself makes no LLM calls.
+The demo video's voiceover is AI text-to-speech, read from a script written for
+the demo (`demo/vo/`); `demo/record_demo.py` + `demo/mix_voiceover.sh` rebuild it.
 
 ## Hackathon notes
 

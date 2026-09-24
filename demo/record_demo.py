@@ -41,7 +41,46 @@ OVERLAY_CSS = (
 )
 
 
+T0 = [None]
+MARKS = []
+LINES = {}  # voiceover line number -> start time (s since page open)
+GAP = 0.9  # silence after each voiceover line
+
+
+def vo_durations():
+    """Durations of demo/vo/lineN.wav if present (voiceover build), else {}."""
+    import subprocess
+    out = {}
+    vo = ROOT / "demo" / "vo"
+    for f in sorted(vo.glob("line*.wav")) if vo.exists() else []:
+        n = int(f.stem[4:])
+        d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "csv=p=0", str(f)], capture_output=True, text=True).stdout
+        out[n] = float(d)
+    return out
+
+
+VO = vo_durations()
+
+
+def line(n):
+    """Start voiceover line n, first holding until line n-1 has finished."""
+    prev = n - 1
+    if prev in LINES and prev in VO:
+        wait = LINES[prev] + VO[prev] + GAP - (time.monotonic() - T0[0])
+        if wait > 0:
+            time.sleep(wait)
+    LINES[n] = round(time.monotonic() - T0[0], 2)
+    mark(f"line {n}")
+
+
+def mark(label):
+    if T0[0] is not None:
+        MARKS.append((round(time.monotonic() - T0[0], 2), label))
+
+
 def caption(page, text):
+    mark("caption: " + text)
     page.evaluate("""([t, css]) => {
       let c = document.getElementById('demo-cap');
       if (!c) { c = document.createElement('div'); c.id = 'demo-cap';
@@ -50,6 +89,7 @@ def caption(page, text):
 
 
 def overlay(page, inner_html):
+    mark("overlay")
     page.evaluate("""([h, css]) => {
       let o = document.getElementById('demo-ovl');
       if (!o) { o = document.createElement('div'); o.id = 'demo-ovl';
@@ -92,10 +132,13 @@ def main():
         b = p.chromium.launch(channel="chrome", headless=True)
         ctx = b.new_context(viewport={"width": 1280, "height": 760}, record_video_dir=str(OUT), record_video_size={"width": 1280, "height": 760})
         pg = ctx.new_page()
+        T0[0] = time.monotonic()
         pg.goto(f"http://127.0.0.1:{PORT}/")
         pg.wait_for_timeout(1200)  # let fonts settle before the title card
+        line(1)
         overlay(pg, TITLE_CARD)
         pg.wait_for_timeout(5000)
+        line(2)
         clear_overlay(pg)
 
         caption(pg, "1. Paste your resume (or upload a PDF) — skills are read locally, nothing leaves the session")
@@ -104,6 +147,7 @@ def main():
         pg.wait_for_selector("#skills .chip")
         pg.wait_for_timeout(2500)
 
+        line(3)
         caption(pg, "2. Live fresher jobs from Google Jobs via SerpApi (engine=google_jobs)")
         pg.fill("#role", "")
         slow_type(pg, "#role", "python developer", delay=60)
@@ -124,12 +168,16 @@ def main():
             pg.mouse.wheel(0, 120)
             pg.wait_for_timeout(hold)
 
+        line(4)
         check("Tradexa", "3. Scam check: Google + Bing complaint search plus a legitimacy footprint, all via SerpApi")
         caption(pg, "Knowledge Graph, AmbitionBox reviews, MCA registry and its own website — low risk, every signal linked")
         pg.wait_for_timeout(5000)
+        line(5)
         check("Infosys BPM", "Big brands get flagged for impersonation (fake offer letters), not called scams")
+        line(6)
         check("Java By Kiran", "A 'job' from a training institute: flagged, with a complaint about non-refundable fees")
 
+        line(7)
         caption(pg, "4. Got an offer on WhatsApp? Paste it and check before you reply")
         pg.click("text=Check an offer I got")
         pg.wait_for_timeout(1200)
@@ -138,18 +186,24 @@ def main():
         pg.click("#offerBtn")
         pg.wait_for_selector("#offerResult .rep")
         pg.locator("#offerResult .rep").scroll_into_view_if_needed()
+        line(8)
         caption(pg, "Fee request + WhatsApp recruiter + no interview = high risk, and scammers are known to impersonate Amazon")
         pg.wait_for_timeout(9000)
         pg.mouse.wheel(0, 500)
         pg.wait_for_timeout(4000)
 
+        line(9)
         caption(pg, "5. The scoring is open — every weight and rule is documented in the repo")
         pg.click("text=How it works")
         pg.wait_for_timeout(6500)
+        line(10)
         caption(pg, "")
         overlay(pg, END_CARD)
-        pg.wait_for_timeout(4500)
+        pg.wait_for_timeout(int(max(4.5, VO.get(10, 0) + 1.5) * 1000))
 
+        mark("end")
+        (OUT / "timeline.tsv").write_text("".join(f"{t}\t{l}\n" for t, l in MARKS))
+        (OUT / "vo_starts.tsv").write_text("".join(f"{n}\t{t}\n" for n, t in sorted(LINES.items())))
         video = pg.video.path()
         ctx.close()
         b.close()

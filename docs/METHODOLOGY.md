@@ -113,7 +113,7 @@ beware...).
 | Impostor news | +6 | news warning of fake offers using the company's name |
 | No Maps listing | +4 | Maps returned no place with this name (weak: remote-first startups may have none) |
 | Maps says placement agency | +6 | category like "Employment agency", "Placement consultant", "Manpower" |
-| Maps says training institute | +10 | category like "Training institute", "Computer training school", "Academy" |
+| Maps says training institute | +10 | category like "Training institute", "Computer training school", "Academy". If the web results already say institute, the two merge into one +15 signal instead of adding up to +22 |
 | No footprint at all | +18 | no Knowledge Graph, reviews, registry record, official site or Maps listing |
 
 ### Contact domains (free, runs after the web layer)

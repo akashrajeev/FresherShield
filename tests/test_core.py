@@ -269,3 +269,13 @@ def test_news_needs_jobs_context_and_company_mention():
     items = [{"title": "Infosys shares fall after fraud allegations at client", "link": "https://n.example/1"},
              {"title": "Fake job racket busted in Pune", "link": "https://n.example/2"}]
     assert news_signals("Infosys", items) == []
+
+
+def test_institute_found_on_web_and_maps_counts_once():
+    from app.scam import Signal, _merge_institute
+    web = Signal("institute", "Looks like a training institute", 12, evidence=[{"link": "https://justdial.com/x"}])
+    mp = Signal("maps_institute", "Maps: training institute", 10, evidence=[{"link": "https://maps.google.com/x"}])
+    out = _merge_institute([web, mp, Signal("reviews", "r", -6)])
+    assert [s.id for s in out] == ["institute", "reviews"]
+    assert out[0].weight == 15 and len(out[0].evidence) == 2
+    assert [s.id for s in _merge_institute([mp])] == ["maps_institute"]

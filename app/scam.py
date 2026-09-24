@@ -663,6 +663,7 @@ def assess(client: SerpClient, job: Job | None, company: str, use_web: bool = Tr
             official = next((s.params.get("domain", "") for s in ws if s.id == "official_site"), "")
             signals.extend(contact_signals(job.full_text(), company, official))
 
+    signals = _merge_institute(signals)
     raw = 20 + sum(s.weight for s in signals)
     score = max(0, min(100, raw))
     # A direct request for money is a hard red flag regardless of footprint.
@@ -698,6 +699,21 @@ def _stats(rating, reviews) -> str:
     """Language-neutral numbers for translated labels, e.g. '★ 4.1/5 · 8,535'."""
     bits = ([f"★ {rating}/5"] if rating else []) + ([f"{int(reviews):,}"] if reviews else [])
     return " · ".join(bits)
+
+
+def _merge_institute(signals: list[Signal]) -> list[Signal]:
+    """Web results and Google Maps both saying 'training institute' is one finding, not two.
+
+    Keep the web signal, add the Maps listing as evidence, and give it +15 instead of
+    the +22 the two separate signals used to add up to.
+    """
+    web = next((s for s in signals if s.id == "institute"), None)
+    mp = next((s for s in signals if s.id == "maps_institute"), None)
+    if not (web and mp):
+        return signals
+    web.weight = 15
+    web.evidence = web.evidence + mp.evidence
+    return [s for s in signals if s is not mp]
 
 
 def headline_key(level: str, signals: list[Signal], impersonation: bool) -> tuple[str, dict]:

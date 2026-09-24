@@ -368,6 +368,12 @@ def maps_url(place: dict) -> str:
     return place.get("link") or place.get("website") or ""
 
 
+def _ptype(p: dict) -> str:
+    """Place category. SerpApi usually gives a string, but some places return a list."""
+    t = p.get("type") or ""
+    return ", ".join(str(x) for x in t) if isinstance(t, list) else str(t)
+
+
 def maps_signals(company: str, places: list[dict]) -> list[Signal]:
     """Real employers usually have offices on Google Maps with reviews; fee-scam "companies" usually don't.
 
@@ -384,18 +390,18 @@ def maps_signals(company: str, places: list[dict]) -> list[Signal]:
     where = best.get("address", "")
     label = f"On Google Maps: {len(hits)} listing(s)" + (f", {total_reviews:,} reviews" if total_reviews else "") + (f", top rated {rating}/5" if rating else "")
     evidence = [{"title": p.get("title", ""), "link": maps_url(p), "source": "Google Maps", "engine": "google_maps",
-                 "snippet": " · ".join(x for x in (p.get("type", ""), p.get("address", "")) if x)[:220]} for p in hits[:3]]
+                 "snippet": " · ".join(x for x in (_ptype(p), str(p.get("address") or "")) if x)[:220]} for p in hits[:3]]
     weight = -10 if total_reviews >= 20 else -4
     low = rating is not None and float(rating) < 3.0 and total_reviews >= 10
     out = [Signal("maps", label, 6 if low else weight, detail=("Low Maps rating. Read the reviews." if low else where), evidence=evidence,
                   params={"n": len(hits), "stats": _stats(rating, total_reviews or None)})]
-    types = " ".join([best.get("type", "")] + list(best.get("types") or []))
+    types = " ".join([_ptype(best)] + [str(t) for t in (best.get("types") or [])])
     if AGENCY_TYPES.search(types):
-        out.append(Signal("maps_agency", f"Google Maps lists it as \"{best.get('type') or 'placement agency'}\", not an employer", 6, params={"type": best.get("type") or "placement agency"},
+        out.append(Signal("maps_agency", f"Google Maps lists it as \"{_ptype(best) or 'placement agency'}\", not an employer", 6, params={"type": _ptype(best) or "placement agency"},
                           detail="Placement agencies sometimes charge job seekers. Real employers never do. Ask who the actual employer is.",
                           evidence=evidence[:1]))
     elif INSTITUTE_TYPES.search(types):
-        out.append(Signal("maps_institute", f"Google Maps lists it as \"{best.get('type') or 'training institute'}\"", 10, params={"type": best.get("type") or "training institute"},
+        out.append(Signal("maps_institute", f"Google Maps lists it as \"{_ptype(best) or 'training institute'}\"", 10, params={"type": _ptype(best) or "training institute"},
                           detail="'Job + training' offers from institutes often mean paying course fees.", evidence=evidence[:1]))
     return out
 

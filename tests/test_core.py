@@ -191,3 +191,9 @@ def test_maps_presence_counts_as_real_company_in_headline():
     from app.scam import _headline, Signal
     sigs = [Signal("impersonation", "x", 10), Signal("maps", "y", -10)]
     assert _headline("caution", sigs, True).startswith("Real company")
+
+
+def test_maps_place_type_can_be_a_list():
+    sigs = maps_signals("Tradexa", [{"title": "Tradexa", "reviews": 30, "type": ["Software company", "Employment agency"], "address": "Pune"}])
+    assert sigs[0].id == "maps" and "Software company" in sigs[0].evidence[0]["snippet"]
+    assert "maps_agency" in {s.id for s in sigs}

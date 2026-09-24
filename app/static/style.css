@@ -112,6 +112,8 @@ button:disabled { opacity: .55; cursor: wait; }
 .chip.miss { border-color: #e4d3ac; background: var(--warn-bg); color: var(--warn); }
 
 .status { margin: 16px 2px; color: var(--muted); min-height: 20px; font-size: 14px; }
+.scanbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: -6px 2px 14px; }
+.scanbar.hidden { display: none; }
 
 /* ---------- job cards ---------- */
 .job {

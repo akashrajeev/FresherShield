@@ -64,6 +64,7 @@ async function runSearch() {
     meter(r.stats);
     $("#status").textContent = `${r.jobs.length} listings for “${r.query}” in ${r.location}, sorted by fresher fit.`;
     renderJobs(r.jobs);
+    estimateScan();
   } catch (e) {
     $("#status").innerHTML = `<span class="flag">${esc(e.message)}</span>`;
   } finally { $("#searchBtn").disabled = false; refreshStatus(); }
@@ -80,6 +81,7 @@ function renderJobs(jobs) {
   root.innerHTML = "";
   jobs.forEach((j) => {
     const el = $("#jobTpl").content.firstElementChild.cloneNode(true);
+    el.dataset.jobId = j.job_id;
     $(".title", el).textContent = j.title;
     $(".thumb", el).src = j.thumbnail || "";
     const bits = [j.company, j.location, j.via && "via " + j.via, j.posted_at, j.schedule_type, j.salary].filter(Boolean);
@@ -117,6 +119,58 @@ function renderJobs(jobs) {
     root.appendChild(el);
   });
 }
+
+// ---------------------------------------------------------------- scan all listings
+// Before scanning, ask the server what it would cost: companies already in the local cache
+// are free, and a company that appears twice is only searched once.
+const SCAN_MAX = 10;
+let scanPlan = null;
+
+function scanIds() { return (lastJobs || []).slice(0, SCAN_MAX).map((j) => j.job_id); }
+
+async function estimateScan() {
+  const ids = scanIds();
+  $("#scanBar").classList.toggle("hidden", !ids.length);
+  if (!ids.length) return;
+  $("#scanEst").textContent = "Working out the cost…";
+  try {
+    scanPlan = await api("/api/check-batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_ids: ids, dry_run: true }) });
+    const p = scanPlan;
+    const n = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+    let t = `${n(p.jobs, "listing")}, ${n(p.companies, "company").replace("companys", "companies")}. `;
+    t += p.searches ? `Uses about ${n(p.searches, "SerpApi search").replace("searchs", "searches")}${p.cached ? ` (${p.cached} already cached)` : ""}` : "All cached: free";
+    if (p.credits_left != null) t += `. ${p.credits_left} credits left`;
+    if (!p.affordable) t += p.offline ? ". Offline: some companies have no cached results" : ". Not enough credits for all of them";
+    $("#scanEst").textContent = t + ".";
+  } catch (e) { $("#scanEst").textContent = e.message; }
+}
+
+$("#scanBtn").addEventListener("click", async () => {
+  const ids = scanIds();
+  if (!ids.length) return;
+  if (scanPlan && scanPlan.searches > 0 && !confirm(`This will use about ${scanPlan.searches} SerpApi searches. Continue?`)) return;
+  const b = $("#scanBtn");
+  b.disabled = true;
+  const cards = ids.map((id) => document.querySelector(`[data-job-id="${CSS.escape(id)}"]`)).filter(Boolean);
+  cards.forEach((el) => { $(".report", el).innerHTML = `<span class="muted"><span class="spinner"></span>Checking…</span>`; });
+  try {
+    const r = await api("/api/check-batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_ids: ids, lang: langSel.value }) });
+    meter(r.stats);
+    const counts = { high: 0, caution: 0, low: 0, unknown: 0 };
+    cards.forEach((el) => {
+      const rep = r.reports[el.dataset.jobId];
+      const box = $(".report", el);
+      if (!rep) { box.innerHTML = ""; return; }
+      box.dataset.req = JSON.stringify({ job_id: el.dataset.jobId });
+      box.innerHTML = renderReport(rep);
+      counts[rep.level] = (counts[rep.level] || 0) + 1;
+    });
+    $("#scanEst").textContent = `Scanned ${cards.length}: ${counts.high} high risk, ${counts.caution} caution, ${counts.low} low risk${counts.unknown ? `, ${counts.unknown} unknown` : ""}.`;
+    scanPlan = null;
+  } catch (e) {
+    $("#scanEst").textContent = e.message;
+  } finally { b.disabled = false; refreshStatus(); }
+});
 
 // ---------------------------------------------------------------- report language + export
 const langSel = $("#lang");

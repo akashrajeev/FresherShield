@@ -87,7 +87,7 @@ def posting_signals(job: Job) -> list[Signal]:
     boards = [board_for(a["domain"]) for a in job.apply_options]
     known = sorted({b for b in boards if b})
     others = sorted({a["domain"] for a, b in zip(job.apply_options, boards) if not b and a["domain"]})
-    if not job.apply_options:
+    if not job.apply_options and job.job_id != "pasted":
         out.append(Signal("no_apply", "No apply link listed anywhere", 10))
     elif known:
         out.append(Signal("boards", f"Listed on established job boards: {', '.join(known)}", -5,

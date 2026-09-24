@@ -93,7 +93,7 @@ class CheckReq(BaseModel):
 def check(req: CheckReq) -> dict:
     job = _jobs.get(req.job_id or "")
     if job is None and req.offer_text:
-        job = Job("pasted", "Pasted offer", req.company or "", "", "", req.offer_text)
+        job = Job("pasted", "", req.company or "", "", "", req.offer_text)
     company = req.company or (job.company if job else "")
     if not company and not job:
         raise HTTPException(400, "Give a job_id from a search or a company name")

@@ -171,7 +171,7 @@ def check_batch(req: BatchReq) -> dict:
         return {"jobs": len(jobs), **est, "credits_left": left, "offline": client.offline,
                 "affordable": est["searches"] == 0 if client.offline else (left is None or left >= est["searches"])}
     # Warm the cache once per unique company so parallel checks never pay twice.
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=max(1, min(8, len(companies)))) as ex:
         list(ex.map(lambda c: assess(client, None, c), companies))
     reports = [assess(client, j, j.company) for j in jobs]
     lang = norm_lang(req.lang)

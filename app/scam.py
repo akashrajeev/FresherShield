@@ -79,6 +79,8 @@ def _rule_match(rid: str, pat: str, text: str) -> re.Match | None:
 
 
 SALARY_NUM = re.compile(r"(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)\s*(k|l|lakh|lpa|lac)?", re.I)
+# Bare "25k per month" / "4.5 LPA" with no currency sign, only right after a pay word.
+SALARY_BARE = re.compile(r"(?:salary|stipend|ctc|package|pay|income)\W{0,12}(?:of\s|upto\s|up to\s)?([\d,]+(?:\.\d+)?)\s*(k|lpa|lakh|lac)\b", re.I)
 
 
 @dataclass
@@ -169,7 +171,7 @@ def stated_pay(text: str) -> tuple[float, str] | None:
     """Highest annual CTC (INR) the text states, with the matched words. Monthly figures are x12."""
     t = text.lower()
     best: tuple[float, str] | None = None
-    for m in SALARY_NUM.finditer(t):
+    for m in [*SALARY_NUM.finditer(t), *SALARY_BARE.finditer(t)]:
         try:
             num = float(m.group(1).replace(",", "") or 0)
         except ValueError:

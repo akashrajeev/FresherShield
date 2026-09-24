@@ -126,9 +126,9 @@ def posting_signals(job: Job) -> list[Signal]:
         out.append(Signal("hidden_company", "Company name is hidden (\"Confidential\")", 12,
                           detail="You can't verify an employer you can't name. Ask for the company name before sharing documents."))
 
-    pay = _too_good_pay(job.salary + " " + text[:600])
+    pay = pay_signal(job)
     if pay:
-        out.append(Signal("pay", "Pay looks unusually high for a no-experience role", 15, detail=pay))
+        out.append(pay)
 
     boards = [board_for(a["domain"]) for a in job.apply_options]
     known = sorted({b for b in boards if b})
@@ -143,25 +143,81 @@ def posting_signals(job: Job) -> list[Signal]:
     return out
 
 
-def _too_good_pay(text: str) -> str | None:
-    """Flag monthly pay above ~₹1.5L or annual above ~₹18 LPA for a fresher, or per-day/week income pitches."""
+# Typical fresher pay by role family, annual CTC in INR (low, high). A posting offering
+# more than twice the high end for a low-barrier role is the classic "data entry,
+# Rs 45,000/month, no experience" hook. Sources are shown to the user with the flag.
+ROLE_BANDS = [
+    ("data entry", r"data[- ]entry|typing|form[- ]filling|copy[- ]paste|captcha", (1.2e5, 2.4e5),
+     "https://salaryctc.com/data-entry-operator-salary/"),
+    ("customer support", r"customer (?:support|service|care)|bpo|call[- ]?cent(?:er|re)|tele[- ]?call|voice process|chat process",
+     (1.7e5, 3.5e5), "https://hyring.com/jobseeker-toolkit/salary/customer-support-executive-salary-in-india"),
+    ("digital marketing", r"digital marketing|social media (?:executive|marketing|manager)|seo (?:executive|analyst)",
+     (3.0e5, 6.5e5), "https://growai.in/digital-marketing-fresher-salary-india-2026/"),
+    ("software", r"software|developer|programmer|sde\b|full[- ]?stack|back[- ]?end|front[- ]?end|data (?:analyst|scientist)|engineer",
+     (3.5e5, 15e5), "https://www.simpliaxis.com/resources/software-engineer-salary-in-india"),
+]
+GENERIC_PAY_CAP = 18e5  # unknown role: flag above ~18 LPA for a fresher
+PER_DAY = re.compile(r"(?:₹|rs\.?)\s?\d[\d,]*\s*(?:per|/|a)\s*(?:day|week)|(?:daily|roz(?:ana)?|per day)\s*(?:₹|rs\.?)?\s?\d{3,5}\s*(?:rs|rupay|rupees|₹)?\s*(?:kamai|kamao|earn|income)", re.I)
+
+
+def fmt_lpa(annual: float) -> str:
+    v = annual / 1e5
+    return f"₹{v:.1f} LPA".replace(".0 ", " ")
+
+
+def stated_pay(text: str) -> tuple[float, str] | None:
+    """Highest annual CTC (INR) the text states, with the matched words. Monthly figures are x12."""
     t = text.lower()
-    if re.search(r"(?:₹|rs\.?)\s?\d[\d,]*\s*(?:per|/)\s*(?:day|week)", t):
-        return re.search(r"(?:₹|rs\.?)\s?\d[\d,]*\s*(?:per|/)\s*(?:day|week)", t).group(0)
+    best: tuple[float, str] | None = None
     for m in SALARY_NUM.finditer(t):
-        num = float(m.group(1).replace(",", "") or 0)
+        try:
+            num = float(m.group(1).replace(",", "") or 0)
+        except ValueError:
+            continue
         unit = (m.group(2) or "").lower()
         window = t[m.end(): m.end() + 25]
+        monthly = any(w in window for w in ("month", "/m", " pm", "p.m", "mahina", "mahine"))
         if unit in ("l", "lakh", "lpa", "lac"):
-            annual = num * 1e5
+            annual = num * 1e5 * (12 if monthly and unit != "lpa" else 1)
         elif unit == "k":
-            annual = num * 1e3 * (12 if "month" in window or "pm" in window else 1)
+            annual = num * 1e3 * (12 if monthly else 1)
         else:
-            annual = num * (12 if ("month" in window or "/m" in window or "pm" in window) else 1)
-        if "month" in window and unit in ("l", "lakh", "lac"):
-            annual = num * 1e5 * 12
-        if annual >= 18e5:
-            return m.group(0) + window[:15]
+            annual = num * (12 if monthly else 1)
+        if annual < 5e4:  # fees, deposits and small sums are not salaries
+            continue
+        if not best or annual > best[0]:
+            best = (annual, (m.group(0) + window[:15]).strip())
+    return best
+
+
+def role_family(title_and_text: str) -> tuple | None:
+    for fam in ROLE_BANDS:
+        if re.search(fam[1], title_and_text, re.I):
+            return fam
+    return None
+
+
+def pay_signal(job: Job) -> Signal | None:
+    text = job.full_text()
+    per_day = PER_DAY.search(text)
+    if per_day:
+        return Signal("pay", "Pay looks unusually high for a no-experience role", 15, detail=per_day.group(0))
+    found = stated_pay(job.salary + " " + text[:800])
+    if not found:
+        return None
+    annual, words = found
+    fam = role_family(job.title + " " + text[:400])
+    if fam:
+        name, _, (lo, hi), src = fam
+        if annual > 2 * hi:
+            rng = f"{fmt_lpa(lo)}-{fmt_lpa(hi)}".replace(" LPA-", "-")
+            return Signal("pay_role", f"Pay ({fmt_lpa(annual)}) is far above the usual fresher range for {name} ({rng})", 20,
+                          detail=f"Stated: \"{words}\". High pay for easy work is how most fake-job scams hook freshers.",
+                          evidence=[{"title": f"Fresher pay for {name} roles", "link": src, "source": urlparse(src).netloc}],
+                          params={"role": name, "stated": fmt_lpa(annual), "range": rng})
+        return None
+    if annual >= GENERIC_PAY_CAP:
+        return Signal("pay", "Pay looks unusually high for a no-experience role", 15, detail=words)
     return None
 
 

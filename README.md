@@ -57,7 +57,11 @@ Full request/response walkthroughs: **[docs/EXAMPLES.md](docs/EXAMPLES.md)**.
 Big brands whose names are used on fake offer letters are flagged as
 **impersonation risk** ("apply only through the official careers page"), not as scams.
 
-The full scoring rules are in [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
+The full scoring rules are in [docs/METHODOLOGY.md](docs/METHODOLOGY.md). On a labelled
+set of 40 scam and genuine messages (English, Hindi, Hinglish) the posting checks alone
+catch **20/20 scams with 1 false alarm** (precision 0.95, recall 1.00); see
+[docs/EVALUATION.md](docs/EVALUATION.md) for the set, the one miss and the limits of
+that number.
 
 ## SerpApi APIs used, and why
 
@@ -131,6 +135,8 @@ app/
   static/      single-page UI (plain HTML/CSS/JS, no build step)
 docs/METHODOLOGY.md   how the risk score works, weights, limits
 docs/EXAMPLES.md      two worked end-to-end checks with real output
+docs/EVALUATION.md    precision/recall of the posting checks on a labelled set
+eval/                 labelled dataset + eval script (python eval/run_eval.py)
 docs/screenshots/     README images (rebuild: python demo/screenshots.py)
 tests/                unit tests (no network), run by GitHub Actions on every push
 ```

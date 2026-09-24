@@ -34,7 +34,8 @@ you paste in the "Check an offer I got" tab).
 | Free-email recruiter | +12 | gmail / yahoo / outlook / rediffmail address |
 | No-interview promise | +20 | "no interview", "direct joining", "100% job guarantee" |
 | Easy-money pattern | +20 | typing / data entry / copy-paste / likes + earn per day/week |
-| Unrealistic pay | +15 | per-day or per-week income pitches, or pay at or above ~₹18 LPA / ₹1.5 L a month for a fresher role |
+| Unrealistic pay | +15 | per-day or per-week income pitches, or pay at or above ~₹18 LPA / ₹1.5 L a month for a fresher role whose type we can't tell |
+| Pay far above the role's fresher range | +20 | stated pay is more than twice the top of the usual fresher range for that kind of role (see table below) |
 | Urgency | +8 | "limited seats", "apply today only" |
 | No apply link | +10 | Google Jobs shows no apply option at all |
 | Only an unfamiliar apply site | +8 | no known job board among the apply options |
@@ -155,3 +156,19 @@ careers page. It does not treat them as evidence against the company.
 
 If you've been targeted: report at <https://cybercrime.gov.in> or call **1930**
 (National Cyber Crime Helpline).
+
+### Salary reality check
+
+The posting's pay is turned into annual CTC (monthly figures x12; sums under ₹50,000 are
+ignored so fees don't count as pay). If the title matches a known role family, the pay is
+compared to that family's usual fresher range. It gets flagged only above **twice** the top
+of that range, so a well-paid genuine offer passes. The source link is shown with the flag.
+
+| Role family | Usual fresher range | Flag above | Source |
+|---|---|---|---|
+| Data entry / typing / form filling | ₹1.2-2.4 LPA (₹10-20k a month) | ₹4.8 LPA | [salaryctc.com](https://salaryctc.com/data-entry-operator-salary/) |
+| Customer support / BPO / telecalling | ₹1.7-3.5 LPA | ₹7 LPA | [hyring.com](https://hyring.com/jobseeker-toolkit/salary/customer-support-executive-salary-in-india) |
+| Digital marketing | ₹3-6.5 LPA | ₹13 LPA | [growai.in](https://growai.in/digital-marketing-fresher-salary-india-2026/) |
+| Software / engineering / data | ₹3.5-15 LPA (services to top product firms) | ₹30 LPA | [simpliaxis.com](https://www.simpliaxis.com/resources/software-engineer-salary-in-india) |
+
+These are rough ranges from public salary guides, not official data.

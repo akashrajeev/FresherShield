@@ -340,8 +340,8 @@ def _looks_official(company: str, domain: str) -> bool:
                "tofler", "crunchbase", "glassdoor", "ambitionbox", "shine", "internshala", "mouthshut", "reddit", "quora")
     if not toks or any(b in host for b in blocked) or any(host.endswith(a) for a in AGGREGATORS):
         return False
-    label = host.split(".")[0] if not host.startswith("www") else host.split(".")[1]
-    return all(t in label for t in toks[:2])
+    labels = [l for l in host.split(".")[:-1] if l not in ("www", "co", "com", "in", "careers", "jobs")] or host.split(".")[:1]
+    return any(all(t in l for t in toks[:2]) for l in labels)
 
 
 def _norm_link(u: str) -> str:
